@@ -1,0 +1,33 @@
+{
+  "version": "2.0",
+  "routeKey": "DELETE /evidence/{id}",
+  "rawPath": "/evidence/demo-id",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "application/json",
+    "host": "api.example.com",
+    "user-agent": "ProofStackClient/1.0"
+  },
+  "pathParameters": {
+    "id": "demo-id"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "example-api",
+    "domainName": "api.example.com",
+    "domainPrefix": "api",
+    "http": {
+      "method": "DELETE",
+      "path": "/evidence/demo-id",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "203.0.113.10",
+      "userAgent": "ProofStackClient/1.0"
+    },
+    "requestId": "delete-request",
+    "routeKey": "DELETE /evidence/{id}",
+    "stage": "$default",
+    "time": "01/Jan/2025:00:00:00 +0000",
+    "timeEpoch": 1735689600000
+  },
+  "isBase64Encoded": false
+}

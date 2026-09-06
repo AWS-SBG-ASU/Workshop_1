@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Validate frontend changes",
+      "trigger": "PostFileSave",
+      "description": "Requires focused frontend tests and appropriate type/build validation after frontend source saves.",
+      "matcher": "frontend[\\\\/]src[\\\\/].*\\.(ts|tsx|css)$",
+      "action": {
+        "type": "agent",
+        "prompt": "Frontend source changed. Run the most focused deterministic Vitest coverage for the behavior, keeping requests mocked at the network boundary. If the change affects shared types, API contracts, or build configuration, also run the full frontend suite, TypeScript validation, and Vite production build. Fix failures before completion."
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "proofstack-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The customer-facing interface for ProofStack, a personal evidence library.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "25.0.1",
+    "typescript": "5.7.3",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
+  }
+}

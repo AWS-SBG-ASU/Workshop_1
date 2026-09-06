@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Guard console-only AWS provisioning",
+      "trigger": "PreToolUse",
+      "description": "Prevents shell-based cloud provisioning and redirects infrastructure work to the AWS Management Console.",
+      "matcher": "execute_pwsh|control_pwsh_process",
+      "action": {
+        "type": "agent",
+        "prompt": "Before allowing this shell tool, inspect the proposed command. Do not run AWS CLI, SAM, CDK, Terraform, OpenTofu, Pulumi, Serverless Framework, sls, or any command that provisions or modifies AWS resources. Redirect that work to explicit AWS Management Console steps. Local tests, type checks, linting, and frontend builds are allowed."
+      }
+    }
+  ]
+}

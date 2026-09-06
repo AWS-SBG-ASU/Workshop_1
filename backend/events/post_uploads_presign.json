@@ -1,0 +1,32 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /uploads/presign",
+  "rawPath": "/uploads/presign",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "application/json",
+    "content-type": "application/json",
+    "host": "api.example.com",
+    "user-agent": "ProofStackClient/1.0"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "example-api",
+    "domainName": "api.example.com",
+    "domainPrefix": "api",
+    "http": {
+      "method": "POST",
+      "path": "/uploads/presign",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "203.0.113.10",
+      "userAgent": "ProofStackClient/1.0"
+    },
+    "requestId": "presign-request",
+    "routeKey": "POST /uploads/presign",
+    "stage": "$default",
+    "time": "01/Jan/2025:00:00:00 +0000",
+    "timeEpoch": 1735689600000
+  },
+  "body": "{\"fileName\":\"receipt.pdf\",\"contentType\":\"application/pdf\"}",
+  "isBase64Encoded": false
+}

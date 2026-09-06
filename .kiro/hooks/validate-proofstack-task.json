@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Validate ProofStack task completion",
+      "trigger": "PostTaskExec",
+      "description": "Checks implementation, tests, console events, permissions, and build-order consistency after each product task.",
+      "action": {
+        "type": "agent",
+        "prompt": "Before marking this ProofStack task complete, verify its focused tests pass and that repository requirements, design, tasks, code, fixtures, and customer documentation agree. For Lambda work, require a payload v2 Console event, expected result, environment variables, and exact IAM actions/resources. Preserve the required product build order and console-only AWS provisioning."
+      }
+    }
+  ]
+}

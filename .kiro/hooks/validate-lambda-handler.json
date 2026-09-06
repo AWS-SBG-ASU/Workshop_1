@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Validate Lambda handler changes",
+      "trigger": "PostFileSave",
+      "description": "Requires focused local validation and a complete Lambda Console handoff after handler saves.",
+      "matcher": "backend[\\\\/]functions[\\\\/].*lambda_function\\.py$",
+      "action": {
+        "type": "agent",
+        "prompt": "A ProofStack Lambda handler changed. Run its focused local pytest without AWS credentials or network access. Then apply the lambda-console-handoff skill: include the standalone source path, environment variables, least-privilege IAM actions/resources, matching API Gateway HTTP API v2 event, expected result and side effect, exact local test result, and ordered AWS Console steps. Do not provide cloud CLI or infrastructure-as-code instructions."
+      }
+    }
+  ]
+}
