@@ -39,12 +39,12 @@ Use placeholders for console-created values. Never include credentials or secret
 
 ### 3. IAM actions and resources
 
-Provide a least-privilege table with:
+Provide a workshop IAM table with:
 
 | Effect | Action | Resource ARN pattern | Reason |
 | ------ | ------ | -------------------- | ------ |
 
-List exact applicable DynamoDB and S3 needs. Do not use `*` resources when a table, bucket, or object prefix can be scoped.
+List the required DynamoDB and S3 actions. For this workshop, use `"Resource": "*"`; production policies must scope table, bucket, and object-prefix resources.
 
 ### 4. Lambda Console event
 
@@ -94,7 +94,7 @@ Give ordered console steps covering only what applies:
 1. Open or create the Lambda function with the required Python runtime.
 2. Paste the standalone source into `lambda_function.py` and deploy it.
 3. Set the handler value and environment variables.
-4. Attach or update the least-privilege execution-role permissions.
+4. Attach or update the workshop execution-role permissions.
 5. In the Regional REST API, open the exact resource and business method, choose the Lambda, and enable Lambda proxy integration.
 6. Confirm the business method and its resource's `OPTIONS` method both use **Authorization** `NONE` and **API Key Required** false. Confirm API Gateway can invoke the function, `OPTIONS` uses a MOCK integration, and `DEFAULT_4XX` and `DEFAULT_5XX` CORS exists.
 7. Explicitly deploy or redeploy the API to stage `prod` if the method, integration, permissions, CORS, or Gateway Responses changed. Record the invoke base ending in `/prod`.

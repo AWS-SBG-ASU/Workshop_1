@@ -20,7 +20,7 @@ ProofStack is a personal evidence application for uploading private files, recor
 - REST proxy events use top-level `httpMethod`, `path`, and `resource`; item events use `pathParameters.id`; every Console event uses `requestContext.stage = "prod"`.
 - Use only these Lambda environment variable names: `TABLE_NAME`, `ASSET_BUCKET`, `ALLOWED_ORIGIN`, `UPLOAD_URL_EXPIRY_SECONDS`, and `DOWNLOAD_URL_EXPIRY_SECONDS`.
 - Keep credentials, resource names, local environment values, and generated presigned URLs out of source and logs.
-- Apply least-privilege IAM permissions scoped to the exact DynamoDB table and the private S3 prefix `evidence/demo/*`.
+- For this workshop, grant only the required IAM actions and use `"Resource": "*"` to reduce deployment setup. Production policies must scope actions to the exact DynamoDB table and private S3 prefix `evidence/demo/*`.
 
 ## API and data contract
 

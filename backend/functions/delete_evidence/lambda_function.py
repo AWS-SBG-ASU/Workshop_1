@@ -124,6 +124,6 @@ def lambda_handler(event, context):
     if any(not os.environ.get(name) for name in REQUIRED_ENVIRONMENT):
         return ApiResponse(500, {"error": {"code": "CONFIGURATION_ERROR", "message": "Required service configuration is missing."}}, ALLOWED_METHODS).to_dict()
 
-    # TODO (phase 3): GetItem for the USER#demo record and return 404 when it is absent. Env: ALLOWED_ORIGIN, TABLE_NAME. IAM: dynamodb:GetItem on arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${TABLE_NAME}.
-    # TODO (phase 4): Add ASSET_BUCKET, get the record, delete the exact S3 asset identified by assetKey first, then DeleteItem, and return an empty 204. IAM: s3:DeleteObject on arn:aws:s3:::${ASSET_BUCKET}/evidence/demo/* plus dynamodb:GetItem and dynamodb:DeleteItem on arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${TABLE_NAME}.
+    # TODO (phase 3): GetItem for the USER#demo record and return 404 when it is absent. Env: ALLOWED_ORIGIN, TABLE_NAME. Workshop IAM: dynamodb:GetItem with Resource: *.
+    # TODO (phase 4): Add ASSET_BUCKET, get the record, delete the exact S3 asset identified by assetKey first, then DeleteItem, and return an empty 204. Workshop IAM: s3:DeleteObject, dynamodb:GetItem, and dynamodb:DeleteItem with Resource: *.
     return ApiResponse(501, {"error": {"code": "NOT_IMPLEMENTED", "message": "Evidence deletion is not implemented."}}, ALLOWED_METHODS).to_dict()

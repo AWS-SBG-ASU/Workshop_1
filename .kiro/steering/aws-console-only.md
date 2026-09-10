@@ -26,4 +26,4 @@ Do not execute AWS CLI, SAM, CDK, Terraform, OpenTofu, Pulumi, Serverless Framew
 
 ## Safety
 
-Use least-privilege IAM policies, keep the evidence bucket private with Block Public Access enabled, and expose only the static frontend assets required for S3 website hosting. Never place credentials or presigned URLs in source, logs, or documentation.
+For this workshop, grant only the required IAM actions with `"Resource": "*"` to reduce deployment setup. Keep the evidence bucket private with Block Public Access enabled, and expose only the static frontend assets required for S3 website hosting. Never place credentials or presigned URLs in source, logs, or documentation. Production policies must scope resources to the exact table and S3 prefix.

@@ -118,6 +118,6 @@ def lambda_handler(event, context):
     if any(not os.environ.get(name) for name in REQUIRED_ENVIRONMENT):
         return ApiResponse(500, {"error": {"code": "CONFIGURATION_ERROR", "message": "Required service configuration is missing."}}, ALLOWED_METHODS).to_dict()
 
-    # TODO (phase 3): Query USER#demo records newest first with DynamoDB Query and no Scan. Env: ALLOWED_ORIGIN, TABLE_NAME. IAM: dynamodb:Query on arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${TABLE_NAME}.
-    # TODO (phase 4): Add ASSET_BUCKET and DOWNLOAD_URL_EXPIRY_SECONDS to issue an assetUrl for each assetKey. IAM: s3:GetObject on arn:aws:s3:::${ASSET_BUCKET}/evidence/demo/*.
+    # TODO (phase 3): Query USER#demo records newest first with DynamoDB Query and no Scan. Env: ALLOWED_ORIGIN, TABLE_NAME. Workshop IAM: dynamodb:Query with Resource: *.
+    # TODO (phase 4): Add ASSET_BUCKET and DOWNLOAD_URL_EXPIRY_SECONDS to issue an assetUrl for each assetKey. Workshop IAM: s3:GetObject with Resource: *.
     return ApiResponse(501, {"error": {"code": "NOT_IMPLEMENTED", "message": "Evidence listing is not implemented."}}, ALLOWED_METHODS).to_dict()

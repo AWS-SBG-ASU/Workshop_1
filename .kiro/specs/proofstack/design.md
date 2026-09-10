@@ -116,7 +116,7 @@ List uses DynamoDB Query with `PK = USER#demo`, an `EVIDENCE#` sort-key prefix, 
 
 Set `ALLOWED_ORIGIN=http://localhost:5173` as each Lambda is introduced. Replace it on all five handlers with the exact public website origin in phase 5. Expiry values are short positive durations such as 900 seconds.
 
-## Least-privilege IAM
+## Workshop IAM
 
 | Handler | DynamoDB                                  | Private S3        |
 | ------- | ----------------------------------------- | ----------------- |
@@ -126,14 +126,14 @@ Set `ALLOWED_ORIGIN=http://localhost:5173` as each Lambda is introduced. Replace
 | Get     | `dynamodb:GetItem`                        | `s3:GetObject`    |
 | Delete  | `dynamodb:GetItem`, `dynamodb:DeleteItem` | `s3:DeleteObject` |
 
-DynamoDB permissions target the exact table ARN. S3 permissions target `arn:aws:s3:::<asset-bucket>/evidence/demo/*`. Phase 3 grants delete only `dynamodb:GetItem`; `dynamodb:DeleteItem` is added in phase 4 when S3-first deletion can be enforced.
+Workshop policies use `"Resource": "*"` and only the actions in this table. Production policies must target the exact table ARN and `arn:aws:s3:::<asset-bucket>/evidence/demo/*`. Phase 3 grants delete only `dynamodb:GetItem`; `dynamodb:DeleteItem` is added in phase 4 when S3-first deletion can be enforced.
 
 ## Learning progression
 
 1. **API Gateway foundation:** create only temporary `GET` and `OPTIONS` MOCK methods on `/workshop`, configure local CORS and default Gateway Responses, and deploy the Regional REST API to `prod`. This isolates resource, method, CORS, and deployment concepts before compute is introduced.
 2. **First Lambda:** create only `proofstack-list-evidence` with a dependency-free `GET /workshop` handler, switch the existing GET integration from MOCK to Lambda proxy, redeploy, and test. This demonstrates the API-to-Lambda transition without data-service complexity.
-3. **DynamoDB metadata:** create `ProofStackEvidence`, evolve list, and add create/get/delete metadata Lambdas. Add `/evidence` and `/evidence/{id}` with final metadata methods and exact `OPTIONS`, grant exact DynamoDB IAM, keep delete intentionally incomplete so metadata remains, remove `/workshop`, and redeploy. This introduces persistence before file storage.
-4. **Private S3 lifecycle:** create the private evidence bucket, add the fifth presign Lambda, enhance list/get/delete, grant exact S3 IAM plus delete's `dynamodb:DeleteItem`, and only now add `/uploads/presign` with its exact `OPTIONS`. Redeploy and verify the full local S3-first lifecycle.
+3. **DynamoDB metadata:** create `ProofStackEvidence`, evolve list, and add create/get/delete metadata Lambdas. Add `/evidence` and `/evidence/{id}` with final metadata methods and exact `OPTIONS`, grant workshop DynamoDB IAM, keep delete intentionally incomplete so metadata remains, remove `/workshop`, and redeploy. This introduces persistence before file storage.
+4. **Private S3 lifecycle:** create the private evidence bucket, add the fifth presign Lambda, enhance list/get/delete, grant workshop S3 IAM plus delete's `dynamodb:DeleteItem`, and only now add `/uploads/presign` with its exact `OPTIONS`. Redeploy and verify the full local S3-first lifecycle.
 5. **Public frontend:** build React, publish only its built assets to a separate public S3 bucket, replace localhost in final API and Lambda CORS with the website origin, retain both allowed private-S3 origins, redeploy `prod`, and verify all five final routes.
 
 The temporary `/workshop` route is disposable teaching infrastructure. It must be absent by the end of phase 3 and does not alter the final system overview or API contract.

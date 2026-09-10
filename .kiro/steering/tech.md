@@ -34,5 +34,5 @@ Use this stack without substitution:
 - List with DynamoDB Query, never Scan, in descending sort-key order. Do not paginate.
 - Return JSON errors as `{"error":{"code":"...","message":"..."}}`; only a successful `204` delete has no body.
 - Use short-lived presigned PUT and GET URLs. Never place AWS credentials in frontend code.
-- Apply exact least privilege: presign `s3:PutObject`; create `dynamodb:PutItem`; list `dynamodb:Query` and, after signed downloads are enabled, `s3:GetObject`; get `dynamodb:GetItem` and `s3:GetObject`; delete `dynamodb:GetItem`, `s3:DeleteObject`, then `dynamodb:DeleteItem`.
-- Scope DynamoDB permissions to the exact table and S3 permissions to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`.
+- For this workshop, grant only these IAM actions: presign `s3:PutObject`; create `dynamodb:PutItem`; list `dynamodb:Query` and, after signed downloads are enabled, `s3:GetObject`; get `dynamodb:GetItem` and `s3:GetObject`; delete `dynamodb:GetItem`, `s3:DeleteObject`, then `dynamodb:DeleteItem`.
+- Use `"Resource": "*"` in workshop IAM policies. Production policies must scope DynamoDB actions to the exact table and S3 actions to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`.

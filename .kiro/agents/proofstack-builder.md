@@ -24,5 +24,5 @@ Build ProofStack as a personal evidence application using the repository require
 - Preserve the Regional REST API, Lambda proxy integration, named `prod` stage, and resources `/uploads/presign`, `/evidence`, and `/evidence/{id}`.
 - For every business method and `OPTIONS`, require **Authorization** `NONE` and **API Key Required** false. Require per-resource `OPTIONS` MOCK CORS, `DEFAULT_4XX`/`DEFAULT_5XX` CORS, explicit deployment or redeployment to `prod`, and an invoke base ending in `/prod`.
 - In phase 5, replace localhost in REST `OPTIONS`, Gateway Responses, and Lambda `ALLOWED_ORIGIN`, retain both origins in private S3 CORS, and redeploy `prod`.
-- Preserve the five-route API contract, `USER#demo`, no-auth scope, PK/SK table model, private evidence bucket, separate public frontend bucket, and exact least-privilege IAM.
+- Preserve the five-route API contract, `USER#demo`, no-auth scope, PK/SK table model, private evidence bucket, separate public frontend bucket, and workshop IAM with only the required actions and `"Resource": "*"`.
 - Report changed files, validation commands and results, required environment variables, IAM actions/resources, remaining console actions, and required `prod` redeployment.

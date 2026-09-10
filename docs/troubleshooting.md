@@ -18,7 +18,7 @@ Start with the browser Network panel, the Lambda's CloudWatch log stream, and th
 
 **API request:** Verify the Regional REST API has the exact resource and method, the method has **Authorization** `NONE` and **API Key Required** false, API Gateway can invoke the selected Lambda, and the request URL includes `/prod`.
 
-**Presigned S3 request:** Verify the URL has not expired, `ASSET_BUCKET` names the private evidence bucket, and the key starts with `evidence/demo/`. Presign needs `s3:PutObject`; list and get need `s3:GetObject`; delete needs `s3:DeleteObject`. Scope each permission to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`.
+**Presigned S3 request:** Verify the URL has not expired, `ASSET_BUCKET` names the private evidence bucket, and the key starts with `evidence/demo/`. Presign needs `s3:PutObject`; list and get need `s3:GetObject`; delete needs `s3:DeleteObject`. Workshop policies use `"Resource": "*"`.
 
 **Website object:** Verify public access was enabled only for the website bucket and its bucket policy grants `s3:GetObject` on `arn:aws:s3:::<website-bucket>/*`.
 
@@ -38,7 +38,7 @@ A handler missing a variable required for its current operation returns a contro
 {"error":{"code":"CONFIGURATION_ERROR","message":"Safe configuration message"}}
 ```
 
-Check exact variable names, values, function region, and role policy resource ARNs. Do not return raw environment values or dependency messages.
+Check exact variable names, values, function region, and required role policy actions. Workshop policies use `"Resource": "*"`. Do not return raw environment values or dependency messages.
 
 | Function | Required variables by completed phase                                                                                                           |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -59,7 +59,7 @@ A `501` with `error.code = NOT_IMPLEMENTED` means every variable required by tha
 - Confirm key names are string attributes `PK` and `SK` and every operation uses `USER#demo`.
 - Evidence sort keys are `EVIDENCE#<id>`, where `id` is a compact fixed-width UTC timestamp followed by a UUID segment.
 - List must use Query, never Scan, with descending sort-key order. It returns all matching records without pagination.
-- In phase 3/Prompt 1, exact-table IAM is create `dynamodb:PutItem`; list `dynamodb:Query`; get `dynamodb:GetItem`; delete `dynamodb:GetItem` only.
+- In phase 3/Prompt 1, workshop IAM uses `"Resource": "*"`: create `dynamodb:PutItem`; list `dynamodb:Query`; get `dynamodb:GetItem`; delete `dynamodb:GetItem` only.
 - In phase 4/Prompt 2, add `dynamodb:DeleteItem` to delete only after exact-object S3-first deletion is implemented. Create remains PutItem-only.
 
 ## Presigned upload content type
@@ -68,13 +68,13 @@ Phase 4/Prompt 2 implements presign. The request sends `fileName` and `contentTy
 
 ## Missing download link
 
-Phase-4/Prompt-2 list and get responses may include temporary `assetUrl` values. Confirm `ASSET_BUCKET` and `DOWNLOAD_URL_EXPIRY_SECONDS` are set on both functions, their roles have `s3:GetObject` on `evidence/demo/*`, and the stored record contains `assetKey`. Never persist or log `assetUrl`.
+Phase-4/Prompt-2 list and get responses may include temporary `assetUrl` values. Confirm `ASSET_BUCKET` and `DOWNLOAD_URL_EXPIRY_SECONDS` are set on both functions, their roles have `s3:GetObject` with `"Resource": "*"`, and the stored record contains `assetKey`. Never persist or log `assetUrl`.
 
 ## Delete failure
 
 In phase 3/Prompt 1, delete performs GetItem only. For a found record with a valid `assetKey`, it returns controlled `501 NOT_IMPLEMENTED`; the item must remain and neither S3 nor DeleteItem may be called.
 
-In phase 4/Prompt 2, delete must GetItem, read `assetKey`, delete that exact S3 object, and only then call DeleteItem. If S3 deletion fails, the DynamoDB item remains. Confirm the delete role has `s3:DeleteObject` for `arn:aws:s3:::<asset-bucket>/evidence/demo/*` and `dynamodb:GetItem` plus `dynamodb:DeleteItem` for the exact table.
+In phase 4/Prompt 2, delete must GetItem, read `assetKey`, delete that exact S3 object, and only then call DeleteItem. If S3 deletion fails, the DynamoDB item remains. Confirm the delete role has `s3:DeleteObject`, `dynamodb:GetItem`, and `dynamodb:DeleteItem` with `"Resource": "*"`.
 
 ## Wrong method integration
 

@@ -30,7 +30,7 @@ Complete phases in order. Do not provision a later service before its predecesso
 - [ ] 3.3 Evolve `proofstack-list-evidence` to Query, never Scan, for `PK = USER#demo` and the `EVIDENCE#` prefix in descending sort-key order, with no pagination or internal keys.
 - [ ] 3.4 Implement standalone create, get, and delete metadata handlers and create their Lambda Console functions with dedicated execution roles. Do not create the presign Lambda yet.
 - [ ] 3.5 Set `ALLOWED_ORIGIN=http://localhost:5173` on the new handlers and set `TABLE_NAME=ProofStackEvidence` on list, create, get, and delete.
-- [ ] 3.6 Apply exact DynamoDB permissions against the exact table ARN: list `dynamodb:Query`; create `dynamodb:PutItem`; get `dynamodb:GetItem`; delete `dynamodb:GetItem` only during this incomplete-delete phase.
+- [ ] 3.6 Apply workshop DynamoDB permissions with `"Resource": "*"`: list `dynamodb:Query`; create `dynamodb:PutItem`; get `dynamodb:GetItem`; delete `dynamodb:GetItem` only during this incomplete-delete phase.
 - [ ] 3.7 Implement create with `PK = USER#demo`, `SK = EVIDENCE#<id>`, validated `assetKey` metadata, `createdAt`, and a compact fixed-width UTC timestamp plus UUID segment for `id`.
 - [ ] 3.8 Implement get with `pathParameters.id`, GetItem, omission of internal keys, and `404` for a missing record.
 - [ ] 3.9 Implement delete metadata lookup and not-found behavior, but do not delete metadata yet. Return controlled incomplete-operation behavior and retain the item until phase-4 S3-first deletion is available.
@@ -48,8 +48,8 @@ Complete phases in order. Do not provision a later service before its predecesso
 - [ ] 4.3 Write failing tests for presigned upload, signed downloads, and S3-first delete behavior.
 - [ ] 4.4 Implement the standalone presign handler and create `proofstack-presign-upload` in the Lambda Console, bringing the final total to five standalone Lambdas. Set `ALLOWED_ORIGIN`, `ASSET_BUCKET`, and `UPLOAD_URL_EXPIRY_SECONDS`.
 - [ ] 4.5 Set `ASSET_BUCKET` and `DOWNLOAD_URL_EXPIRY_SECONDS` on list and get; set `ASSET_BUCKET` on delete. Use only the approved Lambda environment variable names.
-- [ ] 4.6 Scope S3 permissions to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`: presign `s3:PutObject`; list `s3:GetObject`; get `s3:GetObject`; delete `s3:DeleteObject`. Create receives no S3 permission.
-- [ ] 4.7 Add `dynamodb:DeleteItem` on the exact table ARN to delete. Its final permissions shall be `dynamodb:GetItem`, then `s3:DeleteObject`, then `dynamodb:DeleteItem` in execution order.
+- [ ] 4.6 Apply workshop S3 permissions with `"Resource": "*"`: presign `s3:PutObject`; list `s3:GetObject`; get `s3:GetObject`; delete `s3:DeleteObject`. Create receives no S3 permission.
+- [ ] 4.7 Add `dynamodb:DeleteItem` with `"Resource": "*"` to delete. Its final permissions shall be `dynamodb:GetItem`, then `s3:DeleteObject`, then `dynamodb:DeleteItem` in execution order.
 - [ ] 4.8 Implement presign to accept `fileName` and `contentType`, bind the signed PUT to the content type, and return `uploadUrl`, a unique `assetKey` under `evidence/demo/`, and `expiresIn`.
 - [ ] 4.9 Enhance list and get to generate optional short-lived `assetUrl` values from each record's `assetKey`; never store or log temporary URLs.
 - [ ] 4.10 Complete delete so it gets the record, deletes its exact S3 `assetKey` first, calls DeleteItem only after S3 succeeds, retains metadata on S3 failure, and returns an empty `204` on success.

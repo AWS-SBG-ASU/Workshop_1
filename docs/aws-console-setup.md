@@ -98,7 +98,7 @@ DynamoDB stores durable items. Create table `ProofStackEvidence` with string par
    - `proofstack-delete-evidence` ← `backend/functions/delete_evidence/lambda_function.py`
 5. Each uses Python 3.12, x86_64, `lambda_function.lambda_handler`, 256 MB, 10 seconds, and its own basic generated role. Paste/deploy the Prompt-1 implementation.
 6. Set both `ALLOWED_ORIGIN=http://localhost:5173` and `TABLE_NAME=ProofStackEvidence` on create/list/get/delete.
-7. Add exact-table IAM:
+7. Add workshop IAM with `"Resource": "*"`:
 
 | Function | Policy name                   | Action at this checkpoint |
 | -------- | ----------------------------- | ------------------------- |
@@ -107,11 +107,7 @@ DynamoDB stores durable items. Create table `ProofStackEvidence` with string par
 | Get      | `ProofStackGetTableAccess`    | `dynamodb:GetItem`        |
 | Delete   | `ProofStackDeleteTableAccess` | `dynamodb:GetItem` only   |
 
-Each policy resource is:
-
-```text
-arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/ProofStackEvidence
-```
+Each policy uses `"Resource": "*"`. Production policies must use the exact table ARN.
 
 Do not grant `DeleteItem` or any S3 action yet.
 
@@ -162,7 +158,7 @@ S3 stores objects in buckets. The object key begins `evidence/demo/`. The browse
 | Get      | `ALLOWED_ORIGIN=http://localhost:5173`; `TABLE_NAME=ProofStackEvidence`; `ASSET_BUCKET=proofstack-assets-<ACCOUNT_ID>-us-east-1`; `DOWNLOAD_URL_EXPIRY_SECONDS=900` |
 | Delete   | `ALLOWED_ORIGIN=http://localhost:5173`; `TABLE_NAME=ProofStackEvidence`; `ASSET_BUCKET=proofstack-assets-<ACCOUNT_ID>-us-east-1`                                    |
 
-6. Add exact S3 IAM on `arn:aws:s3:::proofstack-assets-<ACCOUNT_ID>-us-east-1/evidence/demo/*`: presign `s3:PutObject`; list/get `s3:GetObject`; delete `s3:DeleteObject`; create none.
+6. Add workshop S3 IAM with `"Resource": "*"`: presign `s3:PutObject`; list/get `s3:GetObject`; delete `s3:DeleteObject`; create none. Production policies must use the exact object prefix.
 7. Update delete’s table policy to `dynamodb:GetItem` plus `dynamodb:DeleteItem`. DeleteItem is allowed only now because the implemented order is GetItem → exact S3 DeleteObject → DynamoDB DeleteItem. S3 failure retains metadata; complete success is bodyless `204`.
 8. Create `/uploads`, then `/uploads/presign`. Add MOCK `OPTIONS` with localhost, `content-type,accept`, and `POST,OPTIONS`. Add proxy `POST` to `proofstack-presign-upload`; use `NONE`, no API key, and allow invoke permission. Redeploy `prod`.
 9. Run Lambda Console events only for changed presign/list/get/delete handlers. Use `backend/events/post_uploads_presign.json`, `get_evidence.json`, `get_evidence_demo_id.json`, and `delete_evidence_demo_id.json`. Presign returns `uploadUrl`, `assetKey`, and `expiresIn`; list/get may add temporary `assetUrl`; delete is bodyless `204` only after both deletes.
@@ -228,11 +224,11 @@ The build already runs `tsc -b`; do not redundantly run a separate typecheck.
 
 | Function | DynamoDB                            | Private S3                  |
 | -------- | ----------------------------------- | --------------------------- |
-| Presign  | none                                | `PutObject` exact prefix    |
-| Create   | `PutItem` exact table               | none                        |
-| List     | `Query` exact table                 | `GetObject` exact prefix    |
-| Get      | `GetItem` exact table               | `GetObject` exact prefix    |
-| Delete   | `GetItem`, `DeleteItem` exact table | `DeleteObject` exact prefix |
+| Presign  | none                                | `PutObject`, `Resource: *`             |
+| Create   | `PutItem`, `Resource: *`            | none                                    |
+| List     | `Query`, `Resource: *`              | `GetObject`, `Resource: *`             |
+| Get      | `GetItem`, `Resource: *`            | `GetObject`, `Resource: *`             |
+| Delete   | `GetItem`, `DeleteItem`, `Resource: *` | `DeleteObject`, `Resource: *`       |
 
 Only these Lambda variable names are used: `TABLE_NAME`, `ASSET_BUCKET`, `ALLOWED_ORIGIN`, `UPLOAD_URL_EXPIRY_SECONDS`, and `DOWNLOAD_URL_EXPIRY_SECONDS`.
 

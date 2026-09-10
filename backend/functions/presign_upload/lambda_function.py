@@ -118,5 +118,5 @@ def lambda_handler(event, context):
     if any(not os.environ.get(name) for name in REQUIRED_ENVIRONMENT):
         return ApiResponse(500, {"error": {"code": "CONFIGURATION_ERROR", "message": "Required service configuration is missing."}}, ALLOWED_METHODS).to_dict()
 
-    # TODO (final): Create an assetKey under evidence/demo/, then generate a short-lived private PUT URL. Env: ALLOWED_ORIGIN, ASSET_BUCKET, UPLOAD_URL_EXPIRY_SECONDS. IAM: s3:PutObject on arn:aws:s3:::${ASSET_BUCKET}/evidence/demo/*.
+    # TODO (final): Create an assetKey under evidence/demo/, then generate a short-lived private PUT URL. Env: ALLOWED_ORIGIN, ASSET_BUCKET, UPLOAD_URL_EXPIRY_SECONDS. Workshop IAM: s3:PutObject with Resource: *.
     return ApiResponse(501, {"error": {"code": "NOT_IMPLEMENTED", "message": "Upload URL creation is not implemented."}}, ALLOWED_METHODS).to_dict()
