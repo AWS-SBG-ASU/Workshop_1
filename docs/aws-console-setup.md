@@ -1,118 +1,141 @@
 # AWS Console setup
 
-Complete every AWS action in the AWS Management Console in `us-east-1`. Use `<account-id>` for the 12-digit AWS account ID and choose globally unique bucket names such as `proofstack-assets-<account-id>-us-east-1` and `proofstack-web-<account-id>-us-east-1`. Record resource names, ARNs, origins, invoke URLs, and deployments outside version control.
+Build ProofStack service by service in the AWS Management Console in `us-east-1`. Do not use AWS CLI, CloudShell provisioning commands, IaC, or deployment scripts. Replace `<ACCOUNT_ID>` and `<API_ID>` only with AWS-generated values; keep generated names, ARNs, endpoints, credentials, and presigned URLs out of version control.
 
-Complete the five phases in order.
+Every business method and `OPTIONS` method uses **Authorization** `NONE` and **API Key Required** false. Every business method uses Lambda proxy integration. After any API resource, method, integration, `OPTIONS`, CORS, or Gateway Response change, explicitly choose **Deploy API** for stage `prod`.
 
-## 1. Create the Regional REST API shell
+## Phase 1 — Learn API Gateway without application services
 
-### Create the API and resources
+API Gateway is the HTTP front door. A REST API contains path **resources** and HTTP **methods**; an **integration** supplies a method response. A browser’s CORS **preflight** is an `OPTIONS` request. **Gateway Responses** cover API Gateway’s own errors. A **deployment** snapshots saved configuration into a named **stage** such as `prod`.
 
-1. Open **API Gateway** → **APIs** → **Create API**.
-2. Under **REST API**, choose **Build**. Do not choose a private endpoint.
-3. Set **API name** to `ProofStackApi` and **Endpoint Type** to **Regional**, then create the API.
-4. In **Resources**, create `/uploads`, then create child `/presign` so the complete path is `/uploads/presign`.
-5. Create root child `/evidence`, then create child `/{id}`. Name the path parameter exactly `id`.
+1. Create a **Regional REST API** named `ProofStackApi` in `us-east-1`.
+2. Do not create any final ProofStack route yet. Create only disposable `/workshop`.
+3. Create `GET /workshop` with **Mock** integration, `NONE`, and no API key.
+4. In Integration Request, set `application/json` template `{"statusCode": 200}`.
+5. In Method Response, declare `200` and `Content-Type`.
+6. In Integration Response, map `Content-Type` to `'application/json'` and add `application/json` body template:
 
-The final callable resource tree is:
-
-```text
-/uploads/presign
-/evidence
-/evidence/{id}
+```json
+{"message":"API Gateway is live"}
 ```
 
-### Create per-resource preflight methods
+7. Create `OPTIONS /workshop` with **Mock**, `NONE`, and no API key. Use Integration Request template `{"statusCode": 200}`; declare the three CORS headers in Method Response `200`; map them in Integration Response to:
+   - origin `'http://localhost:5173'`
+   - headers `'content-type,accept'`
+   - methods `'GET,OPTIONS'`
+8. Set both `DEFAULT_4XX` and `DEFAULT_5XX` Gateway Responses to the same origin/headers/methods.
+9. Deploy to new stage `prod`, record `https://<API_ID>.execute-api.us-east-1.amazonaws.com/prod`, and open `/prod/workshop`. Expect `{"message":"API Gateway is live"}`.
 
-For each callable resource, create an `OPTIONS` method:
+## Phase 2 — Connect the first Lambda
 
-1. Select the resource and choose **Create method** → `OPTIONS`.
-2. Set **Authorization** to `NONE` and **API Key Required** to false.
-3. Choose integration type **Mock** and create the method.
-4. In **Integration request**, ensure a request template for `application/json` returns `{"statusCode": 200}`.
-5. In **Method response**, add status `200` and response headers `Access-Control-Allow-Origin`, `Access-Control-Allow-Headers`, and `Access-Control-Allow-Methods`.
-6. In **Integration response** for `200`, map those headers to quoted static values.
+Lambda runs request-driven code. Proxy integration passes the complete REST request event to Lambda and relays Lambda’s `statusCode`, `headers`, and string `body`.
 
-Use these exact values initially:
+1. Create only `proofstack-list-evidence`: Python 3.12, x86_64, handler `lambda_function.lambda_handler`, 256 MB, 10 seconds, and a new basic Console-created execution role.
+2. Set `ALLOWED_ORIGIN=http://localhost:5173`.
+3. Paste this temporary standalone `lambda_function.py` and deploy:
 
-| Resource           | `Access-Control-Allow-Origin` | `Access-Control-Allow-Headers` | `Access-Control-Allow-Methods` |
-| ------------------ | ----------------------------- | ------------------------------ | ------------------------------ |
-| `/uploads/presign` | `http://localhost:5173`       | `content-type,accept`          | `POST,OPTIONS`                 |
-| `/evidence`        | `http://localhost:5173`       | `content-type,accept`          | `GET,POST,OPTIONS`             |
-| `/evidence/{id}`   | `http://localhost:5173`       | `content-type,accept`          | `GET,DELETE,OPTIONS`           |
+```python
+import json
+import os
 
-Enter static integration-response values with the quoting required by the API Gateway Console, for example `'http://localhost:5173'`.
 
-### Configure gateway-generated error CORS and deploy
+def lambda_handler(event, context):
+    valid = (
+        isinstance(event, dict)
+        and event.get("httpMethod") == "GET"
+        and event.get("path") == "/workshop"
+        and event.get("resource") == "/workshop"
+        and (event.get("requestContext") or {}).get("stage") == "prod"
+    )
+    status = 200 if valid else 404
+    payload = (
+        {"message": "Lambda is connected"}
+        if valid
+        else {"error": {"code": "NOT_FOUND", "message": "Route not found."}}
+    )
+    return {
+        "statusCode": status,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": os.environ.get("ALLOWED_ORIGIN", "null"),
+            "Access-Control-Allow-Headers": "content-type,accept",
+            "Access-Control-Allow-Methods": "GET,OPTIONS",
+        },
+        "body": json.dumps(payload, separators=(",", ":")),
+    }
+```
 
-1. Open **Gateway Responses**.
-2. Edit `DEFAULT_4XX` and `DEFAULT_5XX`.
-3. Add response parameters:
-   - `gatewayresponse.header.Access-Control-Allow-Origin` = `'http://localhost:5173'`
-   - `gatewayresponse.header.Access-Control-Allow-Headers` = `'content-type,accept'`
-   - `gatewayresponse.header.Access-Control-Allow-Methods` = `'GET,POST,DELETE,OPTIONS'`
-4. Return to **Resources**, choose **Deploy API**, create stage `prod`, and deploy.
-5. Record the invoke base: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`.
-6. Confirm preflight responses from each resource and confirm the stage is named exactly `prod`.
+4. Run this Lambda Console event because handler code changed:
 
-REST API configuration changes do not reach callers until you explicitly choose **Deploy API** and target `prod`.
+```json
+{
+  "httpMethod": "GET",
+  "path": "/workshop",
+  "resource": "/workshop",
+  "headers": {"Accept": "application/json"},
+  "pathParameters": null,
+  "requestContext": {"stage": "prod"},
+  "body": null,
+  "isBase64Encoded": false
+}
+```
 
-## 2. Create five Python Lambdas and connect business methods
+Expect `200`, localhost CORS, and `{"message":"Lambda is connected"}`.
 
-For each function:
+5. Delete only the MOCK `GET /workshop`, recreate `GET` with Lambda proxy integration to `proofstack-list-evidence`, keep `OPTIONS` MOCK, allow invoke permission, and redeploy `prod`.
+6. `/prod/workshop` now returns the Lambda message. API Gateway owns routing/preflight/deployment; Lambda owns request validation and response content.
 
-1. Open **Lambda** → **Functions** → **Create function** → **Author from scratch**.
-2. Use Python 3.12, `x86_64`, and a separate role with basic Lambda logging permissions.
-3. In **Code**, replace `lambda_function.py` with the matching repository source and choose **Deploy**. Keep the handler as `lambda_function.lambda_handler`.
-4. Set timeout to 10 seconds and memory to 256 MB.
-5. Set `ALLOWED_ORIGIN=http://localhost:5173` under **Configuration** → **Environment variables**.
+## Phase 3 — Add DynamoDB metadata and real evidence routes
 
-| Function name                | REST API business method |
-| ---------------------------- | ------------------------ |
-| `proofstack-presign-upload`  | `POST /uploads/presign`  |
-| `proofstack-create-evidence` | `POST /evidence`         |
-| `proofstack-list-evidence`   | `GET /evidence`          |
-| `proofstack-get-evidence`    | `GET /evidence/{id}`     |
-| `proofstack-delete-evidence` | `DELETE /evidence/{id}`  |
+DynamoDB stores durable items. Create table `ProofStackEvidence` with string partition key `PK`, string sort key `SK`, and on-demand capacity. ProofStack always uses `PK=USER#demo`; evidence sort keys are `SK=EVIDENCE#<id>`. Timestamp-first fixed-width IDs plus UUID segments make a descending DynamoDB Query return newest first. List uses Query, never Scan, and does not paginate.
 
-For each row:
+1. Before copying handlers, complete **Prompt 1 — Implement DynamoDB evidence metadata** in [the attendee workbook](attendee-implementation-prompts.internal.md) (`prompt_store/01.txt`). Repository handlers begin as `501 NOT_IMPLEMENTED` scaffolds and must be implemented and locally tested.
+2. Create `ProofStackEvidence` and record `arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/ProofStackEvidence`.
+3. Replace the temporary list code with `backend/functions/list_evidence/lambda_function.py`.
+4. Create only these three additional functions now:
+   - `proofstack-create-evidence` ← `backend/functions/create_evidence/lambda_function.py`
+   - `proofstack-get-evidence` ← `backend/functions/get_evidence/lambda_function.py`
+   - `proofstack-delete-evidence` ← `backend/functions/delete_evidence/lambda_function.py`
+5. Each uses Python 3.12, x86_64, `lambda_function.lambda_handler`, 256 MB, 10 seconds, and its own basic generated role. Paste/deploy the Prompt-1 implementation.
+6. Set both `ALLOWED_ORIGIN=http://localhost:5173` and `TABLE_NAME=ProofStackEvidence` on create/list/get/delete.
+7. Add exact-table IAM:
 
-1. Open `ProofStackApi` → **Resources**, select the exact resource, and choose **Create method** with the listed verb.
-2. Set **Authorization** to `NONE` and **API Key Required** to false.
-3. Choose integration type **Lambda function**, enable **Lambda proxy integration**, select the function in `us-east-1`, and allow API Gateway to add invoke permission.
-4. Save the method. Do not add request or response mapping templates to a proxy integration.
+| Function | Policy name                   | Action at this checkpoint |
+| -------- | ----------------------------- | ------------------------- |
+| Create   | `ProofStackCreateTableAccess` | `dynamodb:PutItem`        |
+| List     | `ProofStackListTableAccess`   | `dynamodb:Query`          |
+| Get      | `ProofStackGetTableAccess`    | `dynamodb:GetItem`        |
+| Delete   | `ProofStackDeleteTableAccess` | `dynamodb:GetItem` only   |
 
-Item events use `pathParameters.id`. After all five integrations are saved, choose **Deploy API** and redeploy stage `prod`. Confirm the API appears under each Lambda's triggers and the frontend invoke base still ends in `/prod`.
+Each policy resource is:
 
-After a handler is copied or edited, run its matching event described in [Lambda Console testing](lambda-console-testing.md). At this phase, future resource variables are intentionally absent. A handler that requires one returns `500` with error code `CONFIGURATION_ERROR`. If all variables required by an unfinished operation have been added, that operation returns `501` with error code `NOT_IMPLEMENTED`.
+```text
+arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/ProofStackEvidence
+```
 
-## 3. Create DynamoDB and activate metadata operations
+Do not grant `DeleteItem` or any S3 action yet.
 
-1. Open **DynamoDB** → **Tables** → **Create table**.
-2. Set table name to `ProofStackEvidence`, partition key to `PK` of type **String**, and sort key to `SK` of type **String**.
-3. Keep on-demand capacity, create the table, and record `arn:aws:dynamodb:us-east-1:<account-id>:table/ProofStackEvidence`.
-4. Set `TABLE_NAME=ProofStackEvidence` on create, list, get, and delete.
-5. Add inline policies scoped to that exact table ARN:
+8. Only now create `/evidence`, then child `/{id}`.
+9. Create MOCK `OPTIONS` methods with Integration Request `{"statusCode": 200}`, declared CORS headers in Method Response, and these Integration Response values:
 
-| Function                     | DynamoDB actions                          |
-| ---------------------------- | ----------------------------------------- |
-| `proofstack-create-evidence` | `dynamodb:PutItem`                        |
-| `proofstack-list-evidence`   | `dynamodb:Query`                          |
-| `proofstack-get-evidence`    | `dynamodb:GetItem`                        |
-| `proofstack-delete-evidence` | `dynamodb:GetItem`, `dynamodb:DeleteItem` |
-| `proofstack-presign-upload`  | none                                      |
+| Resource         | Origin                    | Headers                 | Methods                |
+| ---------------- | ------------------------- | ----------------------- | ---------------------- |
+| `/evidence`      | `'http://localhost:5173'` | `'content-type,accept'` | `'GET,POST,OPTIONS'`   |
+| `/evidence/{id}` | `'http://localhost:5173'` | `'content-type,accept'` | `'GET,DELETE,OPTIONS'` |
 
-Items use `PK = USER#demo` and `SK = EVIDENCE#<id>`. Generate `id` as a compact fixed-width UTC timestamp followed by a UUID segment, such as `20250102T030405123456Z-a1b2c3d4`. Store file references in `assetKey`.
+10. Add proxy methods: `POST /evidence` → create; `GET /evidence` → list; `GET /evidence/{id}` → get; `DELETE /evidence/{id}` → delete. Use `NONE`, no API key, and allow invoke permission.
+11. Update both default Gateway Responses to localhost, `content-type,accept`, and `GET,POST,DELETE,OPTIONS`; redeploy `prod`.
+12. Run the matching `backend/events/` Lambda Console event for create/list/get/delete because their handler code changed. Every event has top-level `httpMethod`, `path`, `resource`, `requestContext.stage="prod"`, and item events have `pathParameters.id`.
+13. Verify create `201`, list `200` newest first, get `200`/`404`, and delete’s controlled incomplete-operation response. Delete must retain metadata because private file deletion does not exist yet.
+14. After evidence routes work, delete `/workshop` and redeploy `prod`. The API now has only metadata routes; no `/uploads` route and no presign function exist.
 
-List uses a DynamoDB Query with `PK = USER#demo`, the `EVIDENCE#` sort-key prefix, and descending sort-key order. It never uses Scan and returns all items without pagination. Do not expose `PK` or `SK`.
+All errors retain `{"error":{"code":"...","message":"..."}}`; public records omit `PK` and `SK`.
 
-Test data through ProofStack requests, not the DynamoDB item editor.
+## Phase 4 — Add private S3 and complete the lifecycle
 
-## 4. Create the private evidence bucket and activate signed file operations
+S3 stores objects in buckets. The object key begins `evidence/demo/`. The browser uses short-lived presigned PUT/GET URLs so file bytes bypass the API and no AWS credentials enter frontend code. Bucket CORS permits these browser requests but does not make objects public.
 
-1. Open **S3** → **Buckets** → **Create bucket**. Enter the recorded asset bucket name and select `us-east-1`.
-2. Keep all four **Block Public Access** settings enabled and create the bucket.
-3. On **Permissions**, configure CORS for local browser PUT and GET:
+1. Create private bucket `proofstack-assets-<ACCOUNT_ID>-us-east-1` with all Block Public Access settings on. Save CORS:
 
 ```json
 [
@@ -126,47 +149,91 @@ Test data through ProofStack requests, not the DynamoDB item editor.
 ]
 ```
 
-4. Add environment variables:
+2. Complete **Prompt 2 — Integrate private S3 evidence files** in [the attendee workbook](attendee-implementation-prompts.internal.md) (`prompt_store/02.txt`) before copying changed handlers.
+3. Create the fifth/final function only now: `proofstack-presign-upload` from `backend/functions/presign_upload/lambda_function.py`, Python 3.12, x86_64, `lambda_function.lambda_handler`, 256 MB, 10 seconds, new basic role.
+4. Deploy the Prompt-2 presign/list/get/delete sources; create remains unchanged.
+5. Set phase-4 environments:
 
-| Function                     | Phase-4 variables                                                |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `proofstack-presign-upload`  | `ASSET_BUCKET=<asset-bucket>`, `UPLOAD_URL_EXPIRY_SECONDS=900`   |
-| `proofstack-create-evidence` | none                                                             |
-| `proofstack-list-evidence`   | `ASSET_BUCKET=<asset-bucket>`, `DOWNLOAD_URL_EXPIRY_SECONDS=900` |
-| `proofstack-get-evidence`    | `ASSET_BUCKET=<asset-bucket>`, `DOWNLOAD_URL_EXPIRY_SECONDS=900` |
-| `proofstack-delete-evidence` | `ASSET_BUCKET=<asset-bucket>`                                    |
+| Function | Environment                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Presign  | `ALLOWED_ORIGIN=http://localhost:5173`; `ASSET_BUCKET=proofstack-assets-<ACCOUNT_ID>-us-east-1`; `UPLOAD_URL_EXPIRY_SECONDS=900`                                    |
+| Create   | `ALLOWED_ORIGIN=http://localhost:5173`; `TABLE_NAME=ProofStackEvidence`                                                                                             |
+| List     | `ALLOWED_ORIGIN=http://localhost:5173`; `TABLE_NAME=ProofStackEvidence`; `ASSET_BUCKET=proofstack-assets-<ACCOUNT_ID>-us-east-1`; `DOWNLOAD_URL_EXPIRY_SECONDS=900` |
+| Get      | `ALLOWED_ORIGIN=http://localhost:5173`; `TABLE_NAME=ProofStackEvidence`; `ASSET_BUCKET=proofstack-assets-<ACCOUNT_ID>-us-east-1`; `DOWNLOAD_URL_EXPIRY_SECONDS=900` |
+| Delete   | `ALLOWED_ORIGIN=http://localhost:5173`; `TABLE_NAME=ProofStackEvidence`; `ASSET_BUCKET=proofstack-assets-<ACCOUNT_ID>-us-east-1`                                    |
 
-5. Add inline S3 policies. Scope every Resource to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`:
+6. Add exact S3 IAM on `arn:aws:s3:::proofstack-assets-<ACCOUNT_ID>-us-east-1/evidence/demo/*`: presign `s3:PutObject`; list/get `s3:GetObject`; delete `s3:DeleteObject`; create none.
+7. Update delete’s table policy to `dynamodb:GetItem` plus `dynamodb:DeleteItem`. DeleteItem is allowed only now because the implemented order is GetItem → exact S3 DeleteObject → DynamoDB DeleteItem. S3 failure retains metadata; complete success is bodyless `204`.
+8. Create `/uploads`, then `/uploads/presign`. Add MOCK `OPTIONS` with localhost, `content-type,accept`, and `POST,OPTIONS`. Add proxy `POST` to `proofstack-presign-upload`; use `NONE`, no API key, and allow invoke permission. Redeploy `prod`.
+9. Run Lambda Console events only for changed presign/list/get/delete handlers. Use `backend/events/post_uploads_presign.json`, `get_evidence.json`, `get_evidence_demo_id.json`, and `delete_evidence_demo_id.json`. Presign returns `uploadUrl`, `assetKey`, and `expiresIn`; list/get may add temporary `assetUrl`; delete is bodyless `204` only after both deletes.
+10. Put this in uncommitted `frontend/.env.local`:
 
-| Function                     | S3 actions        | Use                                            |
-| ---------------------------- | ----------------- | ---------------------------------------------- |
-| `proofstack-presign-upload`  | `s3:PutObject`    | Sign short-lived browser PUT requests.         |
-| `proofstack-create-evidence` | none              | Uses `dynamodb:PutItem` only.                  |
-| `proofstack-list-evidence`   | `s3:GetObject`    | Sign short-lived GET URLs for list items.      |
-| `proofstack-get-evidence`    | `s3:GetObject`    | Sign a short-lived GET URL for one item.       |
-| `proofstack-delete-evidence` | `s3:DeleteObject` | Delete the exact asset selected from metadata. |
-
-Presign accepts:
-
-```json
-{"fileName":"receipt.pdf","contentType":"application/pdf"}
+```text
+VITE_API_BASE_URL=https://<API_ID>.execute-api.us-east-1.amazonaws.com/prod
 ```
 
-It returns `uploadUrl`, `assetKey`, and `expiresIn`; `assetKey` starts with `evidence/demo/`. Bind the signed PUT to the submitted content type. List and get may return temporary `assetUrl` values, which must not be stored or logged.
+11. Run `npm --prefix frontend test`, then `npm --prefix frontend run dev` and open `http://localhost:5173`.
+12. Verify presign → direct PUT with matching content type → metadata create → newest-first list → get/download → confirmation → exact-object S3-first delete. Keep the evidence bucket private.
 
-Delete uses GetItem to locate `assetKey`, deletes that exact S3 object first, and calls DeleteItem only after S3 succeeds. Return an empty `204` only after both operations succeed.
+Final tree and integrations must be exactly:
 
-## 5. Build React and deploy the public website bucket
+| Route                   | Function                     |
+| ----------------------- | ---------------------------- |
+| `POST /uploads/presign` | `proofstack-presign-upload`  |
+| `POST /evidence`        | `proofstack-create-evidence` |
+| `GET /evidence`         | `proofstack-list-evidence`   |
+| `GET /evidence/{id}`    | `proofstack-get-evidence`    |
+| `DELETE /evidence/{id}` | `proofstack-delete-evidence` |
 
-1. Set `VITE_API_BASE_URL` in an uncommitted production environment file to `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` without a trailing slash.
-2. Run the local frontend tests, type checks, and production build.
-3. In **S3**, create the recorded website bucket in `us-east-1`. This bucket is separate from the private evidence bucket.
-4. Enable **Static website hosting** and set both index and error documents to `index.html`. Record the exact website origin.
-5. Disable Block Public Access for this website bucket only. Add a bucket policy that grants public `s3:GetObject` only on `arn:aws:s3:::<website-bucket>/*`.
-6. Upload the contents of `frontend/dist/` so `index.html` is at the bucket root. Do not upload source, environment files, or credentials.
-7. For each REST `OPTIONS` integration response, replace `http://localhost:5173` with the exact website origin. Preserve the resource's exact allow-method list and `content-type,accept` headers.
-8. In Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX`, replace the local origin with the exact website origin and preserve the other CORS values.
-9. Update `ALLOWED_ORIGIN` on all five Lambdas to the exact website origin used by deployed responses.
-10. In the private asset bucket CORS rule, add the exact website origin alongside localhost; preserve `GET`, `HEAD`, and `PUT`. Keep Block Public Access enabled.
-11. In API Gateway, choose **Deploy API** and redeploy stage `prod` so all REST CORS changes are live.
-12. Open the website and exercise presign/PUT, create, newest-first list, get/download, and delete. Public access remains limited to the frontend bucket.
+`/workshop` is absent.
+
+## Phase 5 — Build and host the frontend separately
+
+The private bucket stores evidence. A separate bucket exposes only generated frontend assets.
+
+1. Put the invoke base in uncommitted `frontend/.env.production`.
+2. Complete **Prompt 3 — Verify frontend integration and build readiness** in [the attendee workbook](attendee-implementation-prompts.internal.md) (`prompt_store/03.txt`). Confirm it changes no AWS configuration.
+3. Require these commands to pass:
+
+```powershell
+npm --prefix frontend test
+npm --prefix frontend run build
+```
+
+The build already runs `tsc -b`; do not redundantly run a separate typecheck.
+
+4. Create `proofstack-web-<ACCOUNT_ID>-us-east-1` in S3.
+5. Enable static website hosting with index `index.html` and error `index.html`; record the generated website origin without a trailing slash.
+6. Disable Block Public Access for this website bucket only and add public read only for build objects:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": "*",
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::proofstack-web-<ACCOUNT_ID>-us-east-1/*"
+  }]
+}
+```
+
+7. Upload the contents of `frontend/dist/` so `index.html` is at bucket root.
+8. Replace localhost with `<WEBSITE_ORIGIN>` in all three REST `OPTIONS` Integration Responses, both default Gateway Responses, and all five Lambda `ALLOWED_ORIGIN` values. Preserve exact method lists and `content-type,accept`.
+9. Private evidence-bucket CORS may retain both `http://localhost:5173` and `<WEBSITE_ORIGIN>` for GET/HEAD/PUT; keep that bucket private.
+10. Redeploy API stage `prod`.
+11. From the website, verify full upload/create/list/get/download/confirmed-delete behavior.
+
+## Final IAM and environment summary
+
+| Function | DynamoDB                            | Private S3                  |
+| -------- | ----------------------------------- | --------------------------- |
+| Presign  | none                                | `PutObject` exact prefix    |
+| Create   | `PutItem` exact table               | none                        |
+| List     | `Query` exact table                 | `GetObject` exact prefix    |
+| Get      | `GetItem` exact table               | `GetObject` exact prefix    |
+| Delete   | `GetItem`, `DeleteItem` exact table | `DeleteObject` exact prefix |
+
+Only these Lambda variable names are used: `TABLE_NAME`, `ASSET_BUCKET`, `ALLOWED_ORIGIN`, `UPLOAD_URL_EXPIRY_SECONDS`, and `DOWNLOAD_URL_EXPIRY_SECONDS`.
+
+For detailed Console clicks, complete events, policies, checkpoints, troubleshooting, and architecture matrices, use [the internal workshop runbook](aws-console-workshop.internal.md). For teardown, follow [Console-only cleanup](cleanup.md).

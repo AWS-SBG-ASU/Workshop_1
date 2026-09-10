@@ -16,17 +16,27 @@ ProofStack is a personal evidence application. It lets one fixed demo user uploa
 
 ## REST API configuration
 
-1. The REST resource tree shall contain `/uploads/presign`, `/evidence`, and `/evidence/{id}`.
-2. The business methods shall be `POST /uploads/presign`, `POST /evidence`, `GET /evidence`, `GET /evidence/{id}`, and `DELETE /evidence/{id}`. Every business method shall use Lambda proxy integration.
+1. The final REST resource tree shall contain `/uploads/presign`, `/evidence`, and `/evidence/{id}`.
+2. The final business methods shall be `POST /uploads/presign`, `POST /evidence`, `GET /evidence`, `GET /evidence/{id}`, and `DELETE /evidence/{id}`. Every business method shall use Lambda proxy integration.
 3. Every business method and `OPTIONS` method shall use **Authorization** `NONE` and **API Key Required** false.
-4. Each callable resource shall have an `OPTIONS` method with a `MOCK` integration. Initially it shall return `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and these exact `Access-Control-Allow-Methods` values:
+4. Each final callable resource shall have an `OPTIONS` method with a `MOCK` integration. Initially it shall return `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and these exact `Access-Control-Allow-Methods` values:
    - `/uploads/presign`: `POST,OPTIONS`
    - `/evidence`: `GET,POST,OPTIONS`
    - `/evidence/{id}`: `GET,DELETE,OPTIONS`
 5. Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` shall include the local-origin CORS headers so gateway-generated errors are browser-readable.
 6. REST proxy events shall use top-level `httpMethod`, `path`, and `resource`; parameterized requests shall use `pathParameters.id`; Lambda Console events shall set `requestContext.stage` to `prod`.
 7. The API shall be explicitly deployed to `prod` after initial setup and redeployed after every resource, method, integration, CORS, or Gateway Response change. The frontend invoke base shall be `https://<api-id>.execute-api.<region>.amazonaws.com/prod`, without a trailing slash.
-8. In phase 5, the exact website origin shall replace localhost in all REST `OPTIONS` responses, `DEFAULT_4XX`, `DEFAULT_5XX`, and all Lambda `ALLOWED_ORIGIN` values, after which `prod` shall be redeployed. Private evidence-bucket CORS may retain both localhost and the website origin.
+8. During phase 5, the exact website origin shall replace localhost in all REST `OPTIONS` responses, `DEFAULT_4XX`, `DEFAULT_5XX`, and all Lambda `ALLOWED_ORIGIN` values, after which `prod` shall be redeployed. Private evidence-bucket CORS may retain both localhost and the website origin.
+
+### Incremental provisioning contract
+
+The final API contract above remains stable even though the workshop provisions it incrementally.
+
+- Phase 1 shall create only a disposable `/workshop` resource with `GET` and `OPTIONS` MOCK integrations, local CORS, Gateway Responses, and a `prod` deployment. The final service resources shall not be created yet.
+- Phase 2 shall switch `GET /workshop` to Lambda proxy integration with the first Lambda, `proofstack-list-evidence`, while keeping its handler dependency-free, then redeploy and test it.
+- Phase 3 shall create `/evidence` and `/evidence/{id}` with their final metadata methods and exact `OPTIONS` behavior. The temporary `/workshop` resource shall be removed before phase 3 is complete, followed by redeployment.
+- Phase 4 shall add `/uploads/presign` only after the private evidence bucket and signed-upload handler are ready, configure its final method and `OPTIONS`, and redeploy.
+- `/workshop` is a teaching scaffold only. It is not part of the final API and shall not coexist with the completed phase-3 API.
 
 ## API contract
 
@@ -60,19 +70,20 @@ Successful responses shall be JSON except for the empty `204` delete response. T
 - The Query shall run in descending sort-key order so the timestamp-first IDs return newest records first.
 - The response shall contain all matching `items`; ProofStack shall not implement pagination or return pagination tokens.
 - The response shall not expose `PK` or `SK`.
-- In phase 4, each returned record may include a short-lived `assetUrl` generated from its `assetKey`.
+- After signed downloads are enabled in phase 4, each returned record may include a short-lived `assetUrl` generated from its `assetKey`.
 
 ### 4. Get evidence
 
 - `GET /evidence/{id}` shall read `pathParameters.id` and retrieve `PK = USER#demo`, `SK = EVIDENCE#<id>` with DynamoDB GetItem.
 - A missing record shall return `404`.
-- In phase 4, the returned record may include a short-lived `assetUrl` generated from `assetKey`.
+- After signed downloads are enabled in phase 4, the returned record may include a short-lived `assetUrl` generated from `assetKey`.
 
 ### 5. Delete evidence
 
 - `DELETE /evidence/{id}` shall read `pathParameters.id`, retrieve the item, and use its `assetKey`.
-- The handler shall delete the exact S3 object first and call DynamoDB DeleteItem only after S3 deletion succeeds. Metadata shall remain if S3 deletion fails.
-- A missing record shall return `404`; a successful delete shall return `204` with no body.
+- The final handler shall delete the exact S3 object first and call DynamoDB DeleteItem only after S3 deletion succeeds. Metadata shall remain if S3 deletion fails.
+- During phase 3, delete shall stop after metadata lookup and retain the item because private S3 deletion is not yet available.
+- A missing record shall return `404`; a successful final delete shall return `204` with no body.
 
 ### 6. Frontend experience
 
@@ -84,8 +95,8 @@ Successful responses shall be JSON except for the empty `204` delete response. T
 
 Lambda deployment values shall use only these names: `TABLE_NAME`, `ASSET_BUCKET`, `ALLOWED_ORIGIN`, `UPLOAD_URL_EXPIRY_SECONDS`, and `DOWNLOAD_URL_EXPIRY_SECONDS`.
 
-- `ALLOWED_ORIGIN`: all five handlers, set to `http://localhost:5173` in phase 2 and replaced with the deployed website origin in phase 5.
-- `TABLE_NAME`: create, list, get, and delete beginning in phase 3.
+- `ALLOWED_ORIGIN`: set to `http://localhost:5173` as each handler is introduced, then replaced on all five handlers with the deployed website origin in phase 5.
+- `TABLE_NAME`: list, create, get, and delete beginning in phase 3.
 - `ASSET_BUCKET`: presign, list, get, and delete beginning in phase 4.
 - `UPLOAD_URL_EXPIRY_SECONDS`: presign beginning in phase 4.
 - `DOWNLOAD_URL_EXPIRY_SECONDS`: list and get beginning in phase 4.
@@ -94,8 +105,10 @@ Before a handler receives required resource configuration, it shall return a con
 
 ## Delivery and quality requirements
 
-- Complete the phases in order: Regional REST API shell; five Lambdas and business methods; DynamoDB; private S3 signed PUT/GET/delete; React build/public S3.
+- Complete the phases in order: disposable API Gateway `/workshop` foundation; first dependency-free list Lambda behind `/workshop`; DynamoDB metadata API and removal of `/workshop`; private S3 signed upload/download and complete delete; React build and public S3 hosting with final origin cutover.
+- Phase 2 shall create only `proofstack-list-evidence`. Phase 3 shall evolve it and create the create, get, and delete metadata Lambdas. Phase 4 shall create the presign Lambda, bringing the final total to five standalone handlers.
 - Follow test-driven development with focused local tests for success, validation, not-found, configuration, and dependency-failure behavior.
 - After every handler change, run the matching Lambda Console test with an API Gateway REST API Lambda proxy event for `prod`.
+- Redeploy `prod` at every phase transition and after every API resource, method, integration, CORS, or Gateway Response change.
 - Logs shall not contain file contents, internal keys, credentials, raw dependency errors, or presigned URLs.
-- IAM permissions shall be least privilege: create `PutItem`; list `Query` plus phase-4 `GetObject`; get `GetItem` plus `GetObject`; delete `GetItem`, `DeleteObject`, then `DeleteItem`; presign `PutObject`. DynamoDB access shall target the exact table ARN and S3 access the exact `evidence/demo/*` object ARN.
+- IAM permissions shall be exact least privilege: presign `s3:PutObject`; create `dynamodb:PutItem`; list `dynamodb:Query` and, after signed downloads are enabled, `s3:GetObject`; get `dynamodb:GetItem` and `s3:GetObject`; delete `dynamodb:GetItem`, then `s3:DeleteObject`, then `dynamodb:DeleteItem`. DynamoDB access shall target the exact table ARN and S3 access the exact `evidence/demo/*` object ARN.

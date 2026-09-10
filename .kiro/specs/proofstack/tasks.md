@@ -1,68 +1,71 @@
 # ProofStack Build Tasks
 
-Complete phases in order. Do not provision a later phase before its predecessor is verified. Use test-driven development for every handler and run a Lambda Console API Gateway REST API Lambda proxy event for stage `prod` after every handler change.
+Complete phases in order. Do not provision a later service before its predecessor is verified. Use test-driven development for every handler and run a Lambda Console API Gateway REST API Lambda proxy event with `requestContext.stage = "prod"` after every handler change.
 
-## 1. Provision the Regional REST API shell
+## 1. Establish API Gateway with a disposable workshop route
 
 - [ ] 1.1 In the AWS Management Console, create an API Gateway REST API named `ProofStackApi` with endpoint type **Regional**.
-- [ ] 1.2 Create resources `/uploads/presign`, `/evidence`, and `/evidence/{id}`; name the path parameter exactly `id`.
-- [ ] 1.3 On each resource, create an `OPTIONS` method with **Authorization** `NONE`, **API Key Required** false, and a `MOCK` integration that returns status `200`.
-- [ ] 1.4 Configure `OPTIONS` method and integration responses with `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and exact allow-method lists: `/uploads/presign` `POST,OPTIONS`; `/evidence` `GET,POST,OPTIONS`; `/evidence/{id}` `GET,DELETE,OPTIONS`.
-- [ ] 1.5 Configure Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` with local-origin CORS headers.
-- [ ] 1.6 Choose **Deploy API**, create named stage `prod`, and record `https://<api-id>.execute-api.<region>.amazonaws.com/prod` as the frontend invoke base.
-- [ ] 1.7 Confirm resources, `OPTIONS` behavior, Gateway Responses, and the `prod` deployment without using AWS CLI or infrastructure-as-code tooling.
+- [ ] 1.2 Create only the temporary `/workshop` resource. Do not create `/uploads/presign`, `/evidence`, or `/evidence/{id}` yet.
+- [ ] 1.3 Create `GET /workshop` with **Authorization** `NONE`, **API Key Required** false, and a `MOCK` integration returning a dependency-free `200` workshop response.
+- [ ] 1.4 Create `OPTIONS /workshop` with **Authorization** `NONE`, **API Key Required** false, and a `MOCK` integration returning status `200`.
+- [ ] 1.5 Configure `/workshop` CORS with `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and `Access-Control-Allow-Methods: GET,OPTIONS`.
+- [ ] 1.6 Configure Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` with local-origin CORS headers so gateway-generated errors are browser-readable.
+- [ ] 1.7 Choose **Deploy API**, create the named stage `prod`, and record `https://<api-id>.execute-api.<region>.amazonaws.com/prod` as the invoke base.
+- [ ] 1.8 Verify the deployed `GET` and `OPTIONS` behavior for `/workshop` and confirm that no final service route exists yet.
 
-## 2. Create five Lambdas and attach business methods
+## 2. Introduce the first Lambda through the workshop route
 
-- [ ] 2.1 Write failing local contract tests using REST proxy events with top-level `httpMethod`, `path`, `resource`, and `requestContext.stage = "prod"`; item events also use `pathParameters.id`.
-- [ ] 2.2 Create standalone `presign_upload`, `create_evidence`, `list_evidence`, `get_evidence`, and `delete_evidence` Python handler files; each must be directly copyable to `lambda_function.py`.
-- [ ] 2.3 In the Lambda Console, create five Python functions with `lambda_handler` as the entry point and separate execution roles.
-- [ ] 2.4 Set `ALLOWED_ORIGIN=http://localhost:5173` on all five functions so scaffold responses include the local origin.
-- [ ] 2.5 Create these REST business methods. For each, set **Authorization** `NONE`, **API Key Required** false, enable Lambda proxy integration, and select the matching function:
-  - `POST /uploads/presign` -> `presign_upload`
-  - `POST /evidence` -> `create_evidence`
-  - `GET /evidence` -> `list_evidence`
-  - `GET /evidence/{id}` -> `get_evidence`
-  - `DELETE /evidence/{id}` -> `delete_evidence`
-- [ ] 2.6 Ensure parameterized events use `pathParameters.id` and all business methods have API Gateway permission to invoke their Lambdas.
-- [ ] 2.7 Explicitly redeploy the API to `prod` after all integrations are attached.
-- [ ] 2.8 Run local and Lambda Console tests. Before future resource environment variables exist, affected handlers shall return controlled `500` errors with code `CONFIGURATION_ERROR`. If every variable required by an unfinished operation is present, its scaffold shall return `501` with code `NOT_IMPLEMENTED`.
+- [ ] 2.1 Write a failing local contract test for a dependency-free `GET /workshop` REST proxy event with top-level `httpMethod`, `path`, `resource`, and `requestContext.stage = "prod"`.
+- [ ] 2.2 Implement only the standalone list handler source used by `proofstack-list-evidence`; at this phase it shall return a safe temporary workshop response without DynamoDB, S3, or project-local runtime dependencies.
+- [ ] 2.3 In the Lambda Console, create only the Python function `proofstack-list-evidence` with `lambda_handler` as the entry point and a dedicated execution role.
+- [ ] 2.4 Set `ALLOWED_ORIGIN=http://localhost:5173` and copy the standalone handler into the Lambda editor as `lambda_function.py`.
+- [ ] 2.5 Run the matching Lambda Console REST proxy test event for `GET /workshop` and record the expected `200` response and local CORS origin.
+- [ ] 2.6 Replace the `GET /workshop` MOCK integration with Lambda proxy integration targeting `proofstack-list-evidence`; retain **Authorization** `NONE` and **API Key Required** false.
+- [ ] 2.7 Grant API Gateway permission to invoke the Lambda, explicitly redeploy to `prod`, and verify `GET /workshop` through the deployed invoke URL.
 
-## 3. Provision DynamoDB and activate metadata operations
+## 3. Add DynamoDB and the metadata API
 
-- [ ] 3.1 In the DynamoDB Console, create the metadata table with string partition key `PK` and string sort key `SK`.
-- [ ] 3.2 Set `TABLE_NAME` on create, list, get, and delete.
-- [ ] 3.3 Scope table permissions to the exact table ARN: create `dynamodb:PutItem`; list `dynamodb:Query`; get `dynamodb:GetItem`; delete `dynamodb:GetItem` and `dynamodb:DeleteItem`.
-- [ ] 3.4 Drive create from failing tests: generate a compact fixed-width UTC timestamp plus UUID segment for `id`; write `PK = USER#demo`, `SK = EVIDENCE#<id>`, validated metadata using `assetKey`, and `createdAt`.
-- [ ] 3.5 Drive list from failing tests: use Query, never Scan, with `PK = USER#demo`, the `EVIDENCE#` sort-key prefix, and descending sort-key order. Return all records newest first with no pagination or internal keys.
-- [ ] 3.6 Drive get from failing tests: validate `pathParameters.id`, use GetItem, omit internal keys, and return `404` when absent.
-- [ ] 3.7 Drive delete metadata lookup from failing tests. Retain the item until phase-4 S3 deletion succeeds.
-- [ ] 3.8 After every handler change, pass local tests and run the matching Lambda Console REST proxy event for `prod`.
+- [ ] 3.1 In the DynamoDB Console, create `ProofStackEvidence` with string partition key `PK` and string sort key `SK`.
+- [ ] 3.2 Write failing metadata tests using REST proxy events. Item events shall use `pathParameters.id`; every event shall include top-level `httpMethod`, `path`, and `resource` plus `requestContext.stage = "prod"`.
+- [ ] 3.3 Evolve `proofstack-list-evidence` to Query, never Scan, for `PK = USER#demo` and the `EVIDENCE#` prefix in descending sort-key order, with no pagination or internal keys.
+- [ ] 3.4 Implement standalone create, get, and delete metadata handlers and create their Lambda Console functions with dedicated execution roles. Do not create the presign Lambda yet.
+- [ ] 3.5 Set `ALLOWED_ORIGIN=http://localhost:5173` on the new handlers and set `TABLE_NAME=ProofStackEvidence` on list, create, get, and delete.
+- [ ] 3.6 Apply exact DynamoDB permissions against the exact table ARN: list `dynamodb:Query`; create `dynamodb:PutItem`; get `dynamodb:GetItem`; delete `dynamodb:GetItem` only during this incomplete-delete phase.
+- [ ] 3.7 Implement create with `PK = USER#demo`, `SK = EVIDENCE#<id>`, validated `assetKey` metadata, `createdAt`, and a compact fixed-width UTC timestamp plus UUID segment for `id`.
+- [ ] 3.8 Implement get with `pathParameters.id`, GetItem, omission of internal keys, and `404` for a missing record.
+- [ ] 3.9 Implement delete metadata lookup and not-found behavior, but do not delete metadata yet. Return controlled incomplete-operation behavior and retain the item until phase-4 S3-first deletion is available.
+- [ ] 3.10 In API Gateway, create `/evidence` and `/evidence/{id}` with path parameter exactly `id`.
+- [ ] 3.11 Add `POST /evidence`, `GET /evidence`, `GET /evidence/{id}`, and `DELETE /evidence/{id}`. Set **Authorization** `NONE`, **API Key Required** false, and Lambda proxy integration to the matching function on every method.
+- [ ] 3.12 Add MOCK `OPTIONS` methods with **Authorization** `NONE` and **API Key Required** false. Use origin `http://localhost:5173`, headers `content-type,accept`, and exact method lists `/evidence` `GET,POST,OPTIONS` and `/evidence/{id}` `GET,DELETE,OPTIONS`.
+- [ ] 3.13 Run focused local tests and the matching Lambda Console REST proxy test after every handler change, including success, malformed input, missing configuration, not-found, and dependency-failure cases.
+- [ ] 3.14 Remove the temporary `/workshop` resource before completing this phase. Confirm it is absent and no final route depends on it.
+- [ ] 3.15 Explicitly redeploy to `prod`, then verify metadata create, newest-first list, get, not-found, and intentionally incomplete delete through the deployed API.
 
-## 4. Provision private S3 and activate signed PUT/GET and delete
+## 4. Add private S3 and complete the five-route service
 
 - [ ] 4.1 In the S3 Console, create the private evidence bucket with all Block Public Access settings enabled.
-- [ ] 4.2 Configure bucket CORS for browser `PUT`, `GET`, and `HEAD` from `http://localhost:5173`; do not make evidence objects public.
-- [ ] 4.3 Set phase-4 variables:
-  - presign: `ASSET_BUCKET`, `UPLOAD_URL_EXPIRY_SECONDS`
-  - list: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS`
-  - get: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS`
-  - delete: `ASSET_BUCKET`
-- [ ] 4.4 Scope S3 permissions to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`: presign `s3:PutObject`; list `s3:GetObject`; get `s3:GetObject`; delete `s3:DeleteObject`. Create receives no S3 permission and keeps only `dynamodb:PutItem`.
-- [ ] 4.5 Drive presign from failing tests: accept `fileName` and `contentType`; return `uploadUrl`, a unique `assetKey` under `evidence/demo/`, and `expiresIn`; bind the PUT signature to the content type.
-- [ ] 4.6 Drive signed download behavior from failing tests. List and get may add temporary `assetUrl` values generated from each record's `assetKey`; never store or log those URLs.
-- [ ] 4.7 Drive delete from failing tests: get the record, delete its exact S3 `assetKey` first, call DeleteItem only after S3 succeeds, and return an empty `204`.
-- [ ] 4.8 After every handler change, pass local tests and run the matching Lambda Console REST proxy event for `prod`.
-- [ ] 4.9 Verify presign, PUT, metadata create, newest-first list, get/download, and delete through the `/prod` API while the evidence bucket remains private.
+- [ ] 4.2 Configure private-bucket CORS for browser `PUT`, `GET`, and `HEAD` from `http://localhost:5173`; do not make evidence objects public.
+- [ ] 4.3 Write failing tests for presigned upload, signed downloads, and S3-first delete behavior.
+- [ ] 4.4 Implement the standalone presign handler and create `proofstack-presign-upload` in the Lambda Console, bringing the final total to five standalone Lambdas. Set `ALLOWED_ORIGIN`, `ASSET_BUCKET`, and `UPLOAD_URL_EXPIRY_SECONDS`.
+- [ ] 4.5 Set `ASSET_BUCKET` and `DOWNLOAD_URL_EXPIRY_SECONDS` on list and get; set `ASSET_BUCKET` on delete. Use only the approved Lambda environment variable names.
+- [ ] 4.6 Scope S3 permissions to `arn:aws:s3:::<asset-bucket>/evidence/demo/*`: presign `s3:PutObject`; list `s3:GetObject`; get `s3:GetObject`; delete `s3:DeleteObject`. Create receives no S3 permission.
+- [ ] 4.7 Add `dynamodb:DeleteItem` on the exact table ARN to delete. Its final permissions shall be `dynamodb:GetItem`, then `s3:DeleteObject`, then `dynamodb:DeleteItem` in execution order.
+- [ ] 4.8 Implement presign to accept `fileName` and `contentType`, bind the signed PUT to the content type, and return `uploadUrl`, a unique `assetKey` under `evidence/demo/`, and `expiresIn`.
+- [ ] 4.9 Enhance list and get to generate optional short-lived `assetUrl` values from each record's `assetKey`; never store or log temporary URLs.
+- [ ] 4.10 Complete delete so it gets the record, deletes its exact S3 `assetKey` first, calls DeleteItem only after S3 succeeds, retains metadata on S3 failure, and returns an empty `204` on success.
+- [ ] 4.11 Only now create `/uploads/presign`, add `POST` with Lambda proxy integration, **Authorization** `NONE`, and **API Key Required** false.
+- [ ] 4.12 Add its MOCK `OPTIONS` method with **Authorization** `NONE`, **API Key Required** false, origin `http://localhost:5173`, headers `content-type,accept`, and exact methods `POST,OPTIONS`.
+- [ ] 4.13 Run focused local tests and matching Lambda Console REST proxy tests after every changed handler.
+- [ ] 4.14 Explicitly redeploy to `prod`, then verify the full local lifecycle: presign, browser PUT, metadata create, newest-first list, get/download, and S3-first delete while the evidence bucket remains private.
 
-## 5. Build React and deploy to public S3
+## 5. Build React and publish the frontend
 
 - [ ] 5.1 Complete the React/Vite/TypeScript UI for upload-and-create, list, detail/download, delete confirmation, loading, empty, success, validation, not-found, and dependency-failure states.
 - [ ] 5.2 Configure `VITE_API_BASE_URL` with the REST API invoke base ending in `/prod`, without a trailing slash, and keep AWS credentials, bucket names, and generated URLs out of frontend source.
-- [ ] 5.3 Write failing frontend tests first, implement the typed API client and user flows, and pass tests and type checks.
+- [ ] 5.3 Write failing frontend tests first, implement the centralized typed API client and user flows, and pass tests and type checks.
 - [ ] 5.4 Run the Vite production build.
 - [ ] 5.5 In the S3 Console, create the separate frontend bucket, configure static website hosting, and grant public read only to built website objects.
 - [ ] 5.6 Upload the production build output through the S3 Console and record the exact website origin.
-- [ ] 5.7 Replace localhost with that website origin in every REST `OPTIONS` integration response and Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX`. Update all five Lambdas' `ALLOWED_ORIGIN` to the same website origin.
+- [ ] 5.7 Replace localhost with that exact website origin in `/uploads/presign`, `/evidence`, and `/evidence/{id}` REST `OPTIONS` responses and Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX`. Update all five Lambdas' `ALLOWED_ORIGIN` to the same origin.
 - [ ] 5.8 Add the website origin alongside `http://localhost:5173` in private evidence-bucket CORS; preserve `GET`, `HEAD`, and `PUT` and keep Block Public Access enabled.
-- [ ] 5.9 Explicitly redeploy the REST API to `prod`, then complete an end-to-end check of all five API routes from the deployed frontend.
+- [ ] 5.9 Explicitly redeploy the REST API to `prod`, then complete an end-to-end check of all five final API routes from the deployed frontend and confirm `/workshop` does not exist.

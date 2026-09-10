@@ -15,14 +15,14 @@ Every data operation uses `USER#demo`. The private bucket keeps Block Public Acc
 
 ## Components
 
-| Component                | Responsibility                                                                                                    |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `presign_upload` Lambda  | Validate `fileName` and `contentType`; return `uploadUrl`, `assetKey`, and `expiresIn`.                           |
-| `create_evidence` Lambda | Validate metadata, generate a sortable ID, and put one DynamoDB item.                                             |
-| `list_evidence` Lambda   | Query the fixed partition newest first with no pagination; optionally add temporary `assetUrl` values in phase 4. |
-| `get_evidence` Lambda    | Get one item; optionally add a temporary `assetUrl` in phase 4.                                                   |
-| `delete_evidence` Lambda | Get metadata, delete its exact S3 asset, then delete the DynamoDB item.                                           |
-| React frontend           | Coordinate signed upload, metadata create, list, view/download, and confirmed delete.                             |
+| Component                | Responsibility                                                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `presign_upload` Lambda  | Validate `fileName` and `contentType`; return `uploadUrl`, `assetKey`, and `expiresIn`.                                    |
+| `create_evidence` Lambda | Validate metadata, generate a sortable ID, and put one DynamoDB item.                                                      |
+| `list_evidence` Lambda   | Query the fixed partition newest first with no pagination; optionally add temporary `assetUrl` values after S3 is enabled. |
+| `get_evidence` Lambda    | Get one item; optionally add a temporary `assetUrl` after S3 is enabled.                                                   |
+| `delete_evidence` Lambda | Get metadata, delete its exact S3 asset, then delete the DynamoDB item.                                                    |
+| React frontend           | Coordinate signed upload, metadata create, list, view/download, and confirmed delete.                                      |
 
 Each Lambda source is self-contained, exports `lambda_handler`, uses only the Python standard library and the Lambda-provided AWS SDK, and is directly copyable to `lambda_function.py`.
 
@@ -64,15 +64,15 @@ Presign success:
 {"uploadUrl":"temporary signed URL","assetKey":"evidence/demo/unique-receipt.pdf","expiresIn":900}
 ```
 
-Evidence records use `assetKey`. Phase-4 list and get responses may add `assetUrl`; temporary URLs are never stored in DynamoDB or logged.
+Evidence records use `assetKey`. After signed downloads are enabled, list and get responses may add `assetUrl`; temporary URLs are never stored in DynamoDB or logged.
 
 ## CORS and deployment design
 
-Each resource has an `OPTIONS` method with a `MOCK` integration. Initially, method and integration responses expose `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and the exact allow-method value from the resource table. Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` expose the same local origin and headers, with `GET,POST,DELETE,OPTIONS`, so gateway-generated failures are readable by the browser. Lambda responses also use `ALLOWED_ORIGIN`.
+Each final resource has an `OPTIONS` method with a `MOCK` integration. Initially, method and integration responses expose `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and the exact allow-method value from the resource table. Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` expose the same local origin and headers, with `GET,POST,DELETE,OPTIONS`, so gateway-generated failures are readable by the browser. Lambda responses also use `ALLOWED_ORIGIN`.
 
 The REST API is explicitly deployed to the named stage `prod`; its frontend base is `https://<api-id>.execute-api.<region>.amazonaws.com/prod`. Any resource, method, integration, `OPTIONS`, or Gateway Response change requires an explicit redeployment to `prod`.
 
-In phase 5, the exact S3 website origin replaces localhost in all REST `OPTIONS` responses, both default Gateway Responses, and all Lambda `ALLOWED_ORIGIN` values, followed by a `prod` redeployment. The private evidence bucket CORS rule retains both localhost and the website origin for direct signed `PUT`, `GET`, and `HEAD` requests.
+Phase 1 uses the same local-origin pattern on the disposable `/workshop` resource with `GET,OPTIONS`. That resource is removed before phase 3 completes and is not part of the final API. In phase 5, the exact S3 website origin replaces localhost in all final REST `OPTIONS` responses, both default Gateway Responses, and all Lambda `ALLOWED_ORIGIN` values, followed by a `prod` redeployment. The private evidence bucket CORS rule retains both localhost and the website origin for direct signed `PUT`, `GET`, and `HEAD` requests.
 
 ## Data model
 
@@ -101,40 +101,42 @@ List uses DynamoDB Query with `PK = USER#demo`, an `EVIDENCE#` sort-key prefix, 
 2. Presign generates a unique `assetKey` under `evidence/demo/` and returns a short-lived PUT URL.
 3. The browser uploads directly to the private bucket with the signed content type.
 4. After a successful upload, the frontend creates metadata containing that `assetKey`.
-5. In phase 4, list and get may generate short-lived GET URLs as `assetUrl` values.
+5. After private S3 is enabled, list and get may generate short-lived GET URLs as `assetUrl` values.
 6. Delete gets the metadata, deletes the exact object identified by `assetKey`, and then deletes the item. If S3 deletion fails, the item remains for retry.
 
 ## Configuration
 
-| Handler | Required environment variables                                                                  |
-| ------- | ----------------------------------------------------------------------------------------------- |
-| Presign | `ALLOWED_ORIGIN`; phase 4: `ASSET_BUCKET`, `UPLOAD_URL_EXPIRY_SECONDS`                          |
-| Create  | `ALLOWED_ORIGIN`; phase 3: `TABLE_NAME`                                                         |
-| List    | `ALLOWED_ORIGIN`; phase 3: `TABLE_NAME`; phase 4: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS` |
-| Get     | `ALLOWED_ORIGIN`; phase 3: `TABLE_NAME`; phase 4: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS` |
-| Delete  | `ALLOWED_ORIGIN`; phase 3: `TABLE_NAME`; phase 4: `ASSET_BUCKET`                                |
+| Handler | Required environment variables                                                                                |
+| ------- | ------------------------------------------------------------------------------------------------------------- |
+| Presign | `ALLOWED_ORIGIN`; with private S3: `ASSET_BUCKET`, `UPLOAD_URL_EXPIRY_SECONDS`                                |
+| Create  | `ALLOWED_ORIGIN`; with DynamoDB: `TABLE_NAME`                                                                 |
+| List    | `ALLOWED_ORIGIN`; with DynamoDB: `TABLE_NAME`; with private S3: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS` |
+| Get     | `ALLOWED_ORIGIN`; with DynamoDB: `TABLE_NAME`; with private S3: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS` |
+| Delete  | `ALLOWED_ORIGIN`; with DynamoDB: `TABLE_NAME`; with private S3: `ASSET_BUCKET`                                |
 
-Set `ALLOWED_ORIGIN=http://localhost:5173` in phase 2. Replace it with the exact public website origin in phase 5. Expiry values are short positive durations such as 900 seconds.
+Set `ALLOWED_ORIGIN=http://localhost:5173` as each Lambda is introduced. Replace it on all five handlers with the exact public website origin in phase 5. Expiry values are short positive durations such as 900 seconds.
 
 ## Least-privilege IAM
 
-| Handler | DynamoDB                                  | Private S3              |
-| ------- | ----------------------------------------- | ----------------------- |
-| Presign | none                                      | `s3:PutObject`          |
-| Create  | `dynamodb:PutItem`                        | none                    |
-| List    | `dynamodb:Query`                          | phase 4: `s3:GetObject` |
-| Get     | `dynamodb:GetItem`                        | `s3:GetObject`          |
-| Delete  | `dynamodb:GetItem`, `dynamodb:DeleteItem` | `s3:DeleteObject`       |
+| Handler | DynamoDB                                  | Private S3        |
+| ------- | ----------------------------------------- | ----------------- |
+| Presign | none                                      | `s3:PutObject`    |
+| Create  | `dynamodb:PutItem`                        | none              |
+| List    | `dynamodb:Query`                          | `s3:GetObject`    |
+| Get     | `dynamodb:GetItem`                        | `s3:GetObject`    |
+| Delete  | `dynamodb:GetItem`, `dynamodb:DeleteItem` | `s3:DeleteObject` |
 
-DynamoDB permissions target the exact table ARN. S3 permissions target `arn:aws:s3:::<asset-bucket>/evidence/demo/*`.
+DynamoDB permissions target the exact table ARN. S3 permissions target `arn:aws:s3:::<asset-bucket>/evidence/demo/*`. Phase 3 grants delete only `dynamodb:GetItem`; `dynamodb:DeleteItem` is added in phase 4 when S3-first deletion can be enforced.
 
-## Ordered delivery
+## Learning progression
 
-1. Create the Regional REST API resource tree, initial `OPTIONS` MOCK CORS and default Gateway Responses, then deploy to `prod`.
-2. Create five Lambdas, set `ALLOWED_ORIGIN`, add five Lambda proxy business methods, and redeploy `prod`.
-3. Create DynamoDB and activate metadata operations.
-4. Create the private S3 bucket and activate signed PUT/GET plus exact-object delete.
-5. Build React, deploy it to the separate public S3 bucket, replace the API/Lambda local origin, retain both private-S3 origins, and redeploy `prod`.
+1. **API Gateway foundation:** create only temporary `GET` and `OPTIONS` MOCK methods on `/workshop`, configure local CORS and default Gateway Responses, and deploy the Regional REST API to `prod`. This isolates resource, method, CORS, and deployment concepts before compute is introduced.
+2. **First Lambda:** create only `proofstack-list-evidence` with a dependency-free `GET /workshop` handler, switch the existing GET integration from MOCK to Lambda proxy, redeploy, and test. This demonstrates the API-to-Lambda transition without data-service complexity.
+3. **DynamoDB metadata:** create `ProofStackEvidence`, evolve list, and add create/get/delete metadata Lambdas. Add `/evidence` and `/evidence/{id}` with final metadata methods and exact `OPTIONS`, grant exact DynamoDB IAM, keep delete intentionally incomplete so metadata remains, remove `/workshop`, and redeploy. This introduces persistence before file storage.
+4. **Private S3 lifecycle:** create the private evidence bucket, add the fifth presign Lambda, enhance list/get/delete, grant exact S3 IAM plus delete's `dynamodb:DeleteItem`, and only now add `/uploads/presign` with its exact `OPTIONS`. Redeploy and verify the full local S3-first lifecycle.
+5. **Public frontend:** build React, publish only its built assets to a separate public S3 bucket, replace localhost in final API and Lambda CORS with the website origin, retain both allowed private-S3 origins, redeploy `prod`, and verify all five final routes.
+
+The temporary `/workshop` route is disposable teaching infrastructure. It must be absent by the end of phase 3 and does not alter the final system overview or API contract.
 
 ## Frontend and verification
 

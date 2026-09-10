@@ -20,13 +20,13 @@ PK / SK metadata    signed PUT and GET
 
 Every data operation uses `PK = USER#demo`. Evidence files use the private prefix `evidence/demo/`. The browser never receives AWS credentials, and public access is enabled only for the separate frontend bucket.
 
-| Route                   | Purpose                                                                                                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `POST /uploads/presign` | Accept `fileName` and `contentType`; return `uploadUrl`, `assetKey`, and `expiresIn`.                     |
-| `POST /evidence`        | Save metadata containing `assetKey` after upload.                                                         |
-| `GET /evidence`         | Query records newest first with no pagination; phase 4 responses may include temporary `assetUrl` values. |
-| `GET /evidence/{id}`    | Return one record; phase 4 responses may include a temporary `assetUrl`.                                  |
-| `DELETE /evidence/{id}` | Delete the exact private asset, then delete its metadata.                                                 |
+| Route                   | Purpose                                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `POST /uploads/presign` | Accept `fileName` and `contentType`; return `uploadUrl`, `assetKey`, and `expiresIn`.                             |
+| `POST /evidence`        | Save metadata containing `assetKey` after upload.                                                                 |
+| `GET /evidence`         | Query records newest first with no pagination; signed-download responses may include temporary `assetUrl` values. |
+| `GET /evidence/{id}`    | Return one record; signed-download responses may include a temporary `assetUrl`.                                  |
+| `DELETE /evidence/{id}` | Delete the exact private asset, then delete its metadata.                                                         |
 
 Business methods use Lambda proxy integration with **Authorization** `NONE` and **API Key Required** false. REST proxy events use top-level `httpMethod`, `path`, and `resource`; parameterized events use `pathParameters.id`; Console events set `requestContext.stage` to `prod`. API errors use `{"error":{"code":"...","message":"..."}}`; a successful delete returns an empty `204`.
 
@@ -73,10 +73,12 @@ npm --prefix frontend run dev
 
 Follow [AWS Console setup](docs/aws-console-setup.md) in this required order:
 
-1. Create the Regional REST API resources, initial `OPTIONS` MOCK CORS and default Gateway Responses, then deploy to `prod`.
-2. Create the five Lambdas, set `ALLOWED_ORIGIN`, connect the five Lambda proxy business methods, and redeploy `prod`.
-3. Create DynamoDB and activate metadata operations.
-4. Create the private S3 bucket and activate signed PUT/GET and delete behavior.
-5. Build React, deploy it to the separate public S3 bucket, replace localhost in REST/Lambda CORS, retain both origins in private S3 CORS, and redeploy `prod`.
+1. Create only a temporary `/workshop` resource on the Regional REST API with `GET` and `OPTIONS` MOCK integrations, local CORS and default Gateway Responses, then deploy `prod`.
+2. Create only `proofstack-list-evidence` with a dependency-free workshop handler, switch `GET /workshop` to Lambda proxy, then redeploy and test.
+3. Create `ProofStackEvidence`, evolve list, add create/get/delete metadata Lambdas and the `/evidence` resources and methods, keep delete incomplete so metadata remains, remove `/workshop`, then redeploy.
+4. Create the private S3 bucket, add presign and enhanced list/get/delete behavior, only then add `/uploads/presign`, complete exact IAM and local lifecycle verification, then redeploy.
+5. Build React, deploy it to the separate public S3 bucket, replace localhost in final REST/Lambda CORS, retain both origins in private S3 CORS, and redeploy `prod`.
+
+The completed system has exactly the five stable business routes and five standalone Lambdas described above; `/workshop` is disposable teaching infrastructure and must be absent by the end of phase 3.
 
 See [Lambda Console testing](docs/lambda-console-testing.md), [troubleshooting](docs/troubleshooting.md), and [cleanup](docs/cleanup.md) for operational guidance.

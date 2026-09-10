@@ -17,7 +17,7 @@ Provision, configure, inspect, and validate AWS resources only in the AWS Manage
 - Configure Lambda triggers, environment variables, permissions, private S3 CORS, and S3 website settings in the console.
 - Copy each standalone handler into the Lambda code editor as `lambda_function.py`.
 - Use Lambda Console API Gateway REST API Lambda proxy test events after every handler change. Events use top-level `httpMethod`, `path`, and `resource`, item `pathParameters.id`, and `requestContext.stage = "prod"`.
-- In phase 5, replace localhost in REST `OPTIONS`, `DEFAULT_4XX`, `DEFAULT_5XX`, and Lambda `ALLOWED_ORIGIN` with the website origin, then redeploy `prod`; private evidence-bucket CORS may retain both origins.
+- During public frontend delivery in phase 5, replace localhost in the final REST `OPTIONS`, `DEFAULT_4XX`, `DEFAULT_5XX`, and all five Lambda `ALLOWED_ORIGIN` values with the website origin, then redeploy `prod`; private evidence-bucket CORS may retain both origins.
 - Record resource names, ARNs, invoke URLs, environment variables, IAM actions/resources, event payloads, expected results, and deployment actions as explicit handoff information.
 
 ## Prohibited provisioning paths
