@@ -38,5 +38,7 @@ Thumbs.db
 coverage/
 *.log
 
-# Internal workshop deployment notes (may contain account-specific resource details)
-/docs/aws-console-workshop.internal.md
+# Internal workshop deployment notes and attendee prompts (may contain account-specific or instructor-only details)
+docs/aws-console-workshop.internal.md
+docs/attendee-implementation-prompts.internal.md
+docs/prompt_store
