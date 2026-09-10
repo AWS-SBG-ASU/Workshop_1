@@ -5,7 +5,7 @@ Perform cleanup in `us-east-1` after confirming the recorded resource names and 
 ## Safe deletion order
 
 1. **Stop browser traffic.** Open the public website bucket → **Properties** → **Static website hosting** → **Edit** → **Disable**.
-2. **Delete the HTTP API.** Open **API Gateway** → **APIs**, select `ProofStackApi`, and choose **Delete**. This removes routes, integrations, the `$default` stage, CORS settings, and the public invoke endpoint before compute or data resources are removed.
+2. **Delete the Regional REST API.** Open **API Gateway** → **APIs**, select `ProofStackApi`, and choose **Delete**. This removes resources, business methods, Lambda integrations, `OPTIONS` MOCK methods, Gateway Responses, deployments, the `prod` stage, and the public invoke endpoint before compute or data resources are removed.
 3. **Delete the five Lambda functions.** In **Lambda** → **Functions**, delete `proofstack-presign-upload`, `proofstack-create-evidence`, `proofstack-list-evidence`, `proofstack-get-evidence`, and `proofstack-delete-evidence`.
 4. **Delete Lambda execution roles.** In **IAM** → **Roles**, open each role created for those functions, verify it is no longer attached to a function, remove its inline resource policies if required, and delete it. Do not delete shared roles.
 5. **Delete the private evidence bucket.** In **S3** → **Buckets**, select the recorded asset bucket, choose **Empty**, type the confirmation, then choose **Delete**. Verify Block Public Access remained enabled until deletion. If versioning was enabled, permanently remove all object versions and delete markers during the empty operation.

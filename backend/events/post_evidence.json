@@ -1,31 +1,21 @@
 {
-  "version": "2.0",
-  "routeKey": "POST /evidence",
-  "rawPath": "/evidence",
-  "rawQueryString": "",
+  "resource": "/evidence",
+  "path": "/evidence",
+  "httpMethod": "POST",
   "headers": {
-    "accept": "application/json",
-    "content-type": "application/json",
-    "host": "api.example.com",
-    "user-agent": "ProofStackClient/1.0"
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "Host": "api.example.com"
   },
+  "multiValueHeaders": null,
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
   "requestContext": {
-    "accountId": "123456789012",
-    "apiId": "example-api",
-    "domainName": "api.example.com",
-    "domainPrefix": "api",
-    "http": {
-      "method": "POST",
-      "path": "/evidence",
-      "protocol": "HTTP/1.1",
-      "sourceIp": "203.0.113.10",
-      "userAgent": "ProofStackClient/1.0"
-    },
-    "requestId": "create-request",
-    "routeKey": "POST /evidence",
-    "stage": "$default",
-    "time": "02/Jan/2025:03:04:05 +0000",
-    "timeEpoch": 1735787045123
+    "resourcePath": "/evidence",
+    "httpMethod": "POST",
+    "stage": "prod"
   },
   "body": "{\"title\":\"Purchase receipt\",\"description\":\"Receipt for office supplies.\",\"tags\":[\"receipt\",\"office\"],\"fileName\":\"receipt.pdf\",\"contentType\":\"application/pdf\",\"assetKey\":\"evidence/demo/demo-id/receipt.pdf\"}",
   "isBase64Encoded": false

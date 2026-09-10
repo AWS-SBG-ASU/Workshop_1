@@ -15,7 +15,7 @@ ProofStack is a personal evidence application for one fixed demo user. It suppor
   - `GET /evidence`
   - `GET /evidence/{id}`
   - `DELETE /evidence/{id}`
-- Use `id` as the route parameter and `pathParameters.id` in payload format 2.0 events.
+- Use `id` as the resource parameter and `pathParameters.id` in REST API Lambda proxy events. Such events use top-level `httpMethod`, `path`, and `resource`, with `requestContext.stage = "prod"`.
 - Presign accepts `fileName` and `contentType` and returns `uploadUrl`, `assetKey`, and `expiresIn`.
 - Evidence records use `assetKey`; phase-4 list and get responses may include temporary `assetUrl` values.
 - Keep evidence files private under `evidence/demo/`. Browser upload and download use short-lived presigned URLs.

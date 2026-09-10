@@ -2,12 +2,12 @@
 
 ## System overview
 
-A React/Vite/TypeScript single-page application calls an API Gateway HTTP API with payload format 2.0. Five standalone Python Lambdas use a DynamoDB metadata table and a private S3 evidence bucket. A separate public S3 bucket hosts the frontend build.
+A React/Vite/TypeScript single-page application calls an API Gateway Regional REST API through its named `prod` stage. Five standalone Python Lambdas use Lambda proxy integration, a DynamoDB metadata table, and a private S3 evidence bucket. A separate public S3 bucket hosts the frontend build.
 
 ```text
-Browser -> API Gateway HTTP API -> five Python Lambdas
-                                      |-> DynamoDB metadata table
-                                      `-> private evidence S3 bucket
+Browser -> API Gateway Regional REST API /prod -> five Python Lambdas
+                                                   |-> DynamoDB metadata table
+                                                   `-> private evidence S3 bucket
 Browser -> public frontend S3 bucket
 ```
 
@@ -26,7 +26,15 @@ Every data operation uses `USER#demo`. The private bucket keeps Block Public Acc
 
 Each Lambda source is self-contained, exports `lambda_handler`, uses only the Python standard library and the Lambda-provided AWS SDK, and is directly copyable to `lambda_function.py`.
 
-## HTTP API contract
+## REST API contract
+
+| Resource           | Business methods | Lambda target(s)                   | `OPTIONS` allow methods |
+| ------------------ | ---------------- | ---------------------------------- | ----------------------- |
+| `/uploads/presign` | `POST`           | `presign_upload`                   | `POST,OPTIONS`          |
+| `/evidence`        | `POST`, `GET`    | `create_evidence`, `list_evidence` | `GET,POST,OPTIONS`      |
+| `/evidence/{id}`   | `GET`, `DELETE`  | `get_evidence`, `delete_evidence`  | `GET,DELETE,OPTIONS`    |
+
+Every business method uses Lambda proxy integration. Every business method and `OPTIONS` method sets **Authorization** to `NONE` and **API Key Required** to false. The API endpoint type is Regional.
 
 | Route                   | Success | Main errors                                         |
 | ----------------------- | ------: | --------------------------------------------------- |
@@ -36,7 +44,7 @@ Each Lambda source is self-contained, exports `lambda_handler`, uses only the Py
 | `GET /evidence/{id}`    |   `200` | `400`, `404`, `500`, `501` during incomplete phases |
 | `DELETE /evidence/{id}` |   `204` | `400`, `404`, `500`, `501` during incomplete phases |
 
-The route variable is `id`; payload format 2.0 events use `pathParameters.id`. JSON errors always use:
+REST proxy events carry top-level `httpMethod`, `path`, and `resource`; item requests use `pathParameters.id`; Console test events include `requestContext.stage = "prod"`. Request bodies are JSON strings. JSON errors always use:
 
 ```json
 {"error":{"code":"NOT_FOUND","message":"Evidence was not found."}}
@@ -57,6 +65,14 @@ Presign success:
 ```
 
 Evidence records use `assetKey`. Phase-4 list and get responses may add `assetUrl`; temporary URLs are never stored in DynamoDB or logged.
+
+## CORS and deployment design
+
+Each resource has an `OPTIONS` method with a `MOCK` integration. Initially, method and integration responses expose `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and the exact allow-method value from the resource table. Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` expose the same local origin and headers, with `GET,POST,DELETE,OPTIONS`, so gateway-generated failures are readable by the browser. Lambda responses also use `ALLOWED_ORIGIN`.
+
+The REST API is explicitly deployed to the named stage `prod`; its frontend base is `https://<api-id>.execute-api.<region>.amazonaws.com/prod`. Any resource, method, integration, `OPTIONS`, or Gateway Response change requires an explicit redeployment to `prod`.
+
+In phase 5, the exact S3 website origin replaces localhost in all REST `OPTIONS` responses, both default Gateway Responses, and all Lambda `ALLOWED_ORIGIN` values, followed by a `prod` redeployment. The private evidence bucket CORS rule retains both localhost and the website origin for direct signed `PUT`, `GET`, and `HEAD` requests.
 
 ## Data model
 
@@ -81,7 +97,7 @@ List uses DynamoDB Query with `PK = USER#demo`, an `EVIDENCE#` sort-key prefix, 
 
 ## File and record flow
 
-1. The frontend sends `fileName` and `contentType` to the presign route.
+1. The frontend sends `fileName` and `contentType` to the presign resource.
 2. Presign generates a unique `assetKey` under `evidence/demo/` and returns a short-lived PUT URL.
 3. The browser uploads directly to the private bucket with the signed content type.
 4. After a successful upload, the frontend creates metadata containing that `assetKey`.
@@ -98,7 +114,7 @@ List uses DynamoDB Query with `PK = USER#demo`, an `EVIDENCE#` sort-key prefix, 
 | Get     | `ALLOWED_ORIGIN`; phase 3: `TABLE_NAME`; phase 4: `ASSET_BUCKET`, `DOWNLOAD_URL_EXPIRY_SECONDS` |
 | Delete  | `ALLOWED_ORIGIN`; phase 3: `TABLE_NAME`; phase 4: `ASSET_BUCKET`                                |
 
-Set `ALLOWED_ORIGIN=http://localhost:5173` in phase 2. Update it to the exact public website origin in phase 5. Expiry values are short positive durations such as 900 seconds.
+Set `ALLOWED_ORIGIN=http://localhost:5173` in phase 2. Replace it with the exact public website origin in phase 5. Expiry values are short positive durations such as 900 seconds.
 
 ## Least-privilege IAM
 
@@ -114,16 +130,16 @@ DynamoDB permissions target the exact table ARN. S3 permissions target `arn:aws:
 
 ## Ordered delivery
 
-1. Create the API Gateway HTTP API shell and configure CORS for `http://localhost:5173`.
-2. Create five Lambdas, set `ALLOWED_ORIGIN`, attach payload format 2.0 integrations, and add the five routes.
+1. Create the Regional REST API resource tree, initial `OPTIONS` MOCK CORS and default Gateway Responses, then deploy to `prod`.
+2. Create five Lambdas, set `ALLOWED_ORIGIN`, add five Lambda proxy business methods, and redeploy `prod`.
 3. Create DynamoDB and activate metadata operations.
 4. Create the private S3 bucket and activate signed PUT/GET plus exact-object delete.
-5. Build React, deploy it to the separate public S3 bucket, add its website origin to API Gateway and private-bucket CORS, and update `ALLOWED_ORIGIN`.
+5. Build React, deploy it to the separate public S3 bucket, replace the API/Lambda local origin, retain both private-S3 origins, and redeploy `prod`.
 
 ## Frontend and verification
 
-Keep API types and requests in one typed client. Presentation components do not coordinate multi-step upload/create behavior. Read the API base URL from `VITE_API_BASE_URL`; never embed AWS credentials or private resource names.
+Keep API types and requests in one typed client. Presentation components do not coordinate multi-step upload/create behavior. Read the `/prod` API invoke base from `VITE_API_BASE_URL`; never embed AWS credentials or private resource names.
 
-Use test-driven development. Local Lambda tests use payload format 2.0 events and replace AWS SDK clients with deterministic fakes or mocks. Cover success, malformed input, missing configuration, not-found records, and dependency failures. After every handler change, repeat the relevant event in the Lambda Console. Run frontend tests, type checks, and the Vite production build before deployment.
+Use test-driven development. Local Lambda tests use REST API Lambda proxy events for `prod` and replace AWS SDK clients with deterministic fakes or mocks. Cover success, malformed input, missing configuration, not-found records, and dependency failures. After every handler change, repeat the relevant event in the Lambda Console. Run frontend tests, type checks, and the Vite production build before deployment.
 
 Create and configure API Gateway, Lambda, DynamoDB, IAM, and both S3 buckets only in the AWS Management Console.

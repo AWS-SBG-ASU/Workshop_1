@@ -37,3 +37,6 @@ Thumbs.db
 # Generated files
 coverage/
 *.log
+
+# Internal workshop deployment notes (may contain account-specific resource details)
+/docs/aws-console-workshop.internal.md

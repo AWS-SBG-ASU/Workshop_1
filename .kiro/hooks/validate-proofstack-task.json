@@ -4,10 +4,10 @@
     {
       "name": "Validate ProofStack task completion",
       "trigger": "PostTaskExec",
-      "description": "Checks implementation, tests, console events, permissions, and build-order consistency after each product task.",
+      "description": "Checks implementation, tests, Console events, permissions, and build-order consistency after each product task.",
       "action": {
         "type": "agent",
-        "prompt": "Before marking this ProofStack task complete, verify its focused tests pass and that repository requirements, design, tasks, code, fixtures, and customer documentation agree. For Lambda work, require a payload v2 Console event, expected result, environment variables, and exact IAM actions/resources. Preserve the required product build order and console-only AWS provisioning."
+        "prompt": "Before marking this ProofStack task complete, verify its focused tests pass and that repository requirements, design, tasks, code, fixtures, and customer documentation agree. For Lambda work, require a REST API Lambda proxy Console event with top-level httpMethod, path, resource, pathParameters.id when applicable, requestContext.stage set to prod, the expected result, environment variables, and exact IAM actions/resources. For API work, verify a Regional REST API, resources /uploads/presign, /evidence, and /evidence/{id}, Lambda proxy business methods, Authorization NONE and API Key Required false on every business method and OPTIONS method, per-resource OPTIONS MOCK methods with exact CORS method lists, DEFAULT_4XX/DEFAULT_5XX CORS, an invoke base ending in /prod, and explicit deployment or redeployment to prod. In phase 5, verify the website origin replaces localhost in REST OPTIONS, Gateway Responses, and Lambda ALLOWED_ORIGIN while private S3 CORS retains both origins, followed by prod redeployment. Preserve the required product build order, no-auth behavior, exact data/IAM contracts, and console-only AWS provisioning."
       }
     }
   ]

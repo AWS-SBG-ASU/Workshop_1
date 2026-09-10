@@ -5,7 +5,7 @@ ProofStack is a personal evidence application for uploading private files, recor
 ## Required architecture
 
 - Frontend: React, Vite, and TypeScript in `frontend/`.
-- API: Amazon API Gateway HTTP API with payload format 2.0.
+- API: Amazon API Gateway Regional REST API with Lambda proxy integration and named stage `prod`.
 - Compute: five standalone Python Lambda handlers in `backend/`.
 - Data: one DynamoDB table with string keys `PK` and `SK`.
 - Storage: one private S3 evidence bucket and one separate public S3 frontend bucket.
@@ -16,18 +16,25 @@ ProofStack is a personal evidence application for uploading private files, recor
 - Provision and configure AWS resources only in the AWS Management Console.
 - Do not use AWS CLI, SAM, CDK, Terraform, OpenTofu, Pulumi, Serverless Framework, or other infrastructure-as-code tooling.
 - Keep every Lambda source file self-contained, with `lambda_handler` as the entry point and no project-local runtime imports, so its contents can be copied directly into `lambda_function.py`.
-- Follow test-driven development. After every Lambda change, run a Lambda Console test with an API Gateway HTTP API payload format 2.0 event and record the expected result.
+- Follow test-driven development. After every Lambda change, run a Lambda Console test with an API Gateway REST API Lambda proxy event and record the expected result.
+- REST proxy events use top-level `httpMethod`, `path`, and `resource`; item events use `pathParameters.id`; every Console event uses `requestContext.stage = "prod"`.
 - Use only these Lambda environment variable names: `TABLE_NAME`, `ASSET_BUCKET`, `ALLOWED_ORIGIN`, `UPLOAD_URL_EXPIRY_SECONDS`, and `DOWNLOAD_URL_EXPIRY_SECONDS`.
 - Keep credentials, resource names, local environment values, and generated presigned URLs out of source and logs.
 - Apply least-privilege IAM permissions scoped to the exact DynamoDB table and the private S3 prefix `evidence/demo/*`.
 
 ## API and data contract
 
+Create these REST resources and business methods:
+
 - `POST /uploads/presign`
 - `POST /evidence`
 - `GET /evidence`
 - `GET /evidence/{id}`
 - `DELETE /evidence/{id}`
+
+Enable Lambda proxy integration for every business method. Set **Authorization** to `NONE` and **API Key Required** to false for every business method and every `OPTIONS` method; ProofStack has no authentication or API-key requirement.
+
+Create an `OPTIONS` method with a `MOCK` integration on `/uploads/presign`, `/evidence`, and `/evidence/{id}`. Initially return `Access-Control-Allow-Origin: http://localhost:5173`, `Access-Control-Allow-Headers: content-type,accept`, and exact per-resource method lists: `POST,OPTIONS`; `GET,POST,OPTIONS`; and `GET,DELETE,OPTIONS`, respectively. Add the same local-origin CORS headers to Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX`.
 
 Parameterized events use `pathParameters.id`. Presign input is `fileName` and `contentType`; its response contains `uploadUrl`, `assetKey`, and `expiresIn`. Evidence records use `assetKey`, and list/get responses may include a temporary `assetUrl` after signed downloads are enabled.
 
@@ -37,7 +44,9 @@ JSON errors use `{"error":{"code":"...","message":"..."}}`; the only bodyless re
 
 ## Required build order
 
-Complete these phases in order: API Gateway shell; five Lambdas and routes; DynamoDB metadata; private S3 signed PUT/GET and delete; React build and public S3 hosting. Configure API Gateway CORS for `http://localhost:5173` in phase 1, set Lambda `ALLOWED_ORIGIN` in phase 2, and add the website origin to API Gateway and S3 CORS while updating `ALLOWED_ORIGIN` in phase 5.
+Complete these phases in order: Regional REST API shell; five Lambdas and business methods; DynamoDB metadata; private S3 signed PUT/GET and delete; React build and public S3 hosting. Explicitly deploy the REST API to `prod` after initial API setup and redeploy `prod` after every resource, method, integration, CORS, or Gateway Response change. The invoke base is `https://<api-id>.execute-api.<region>.amazonaws.com/prod`.
+
+Configure REST `OPTIONS` and Gateway Responses for `http://localhost:5173` in phase 1 and set Lambda `ALLOWED_ORIGIN` in phase 2. In phase 5, replace localhost in REST `OPTIONS`, `DEFAULT_4XX`, `DEFAULT_5XX`, and every Lambda `ALLOWED_ORIGIN` with the exact website origin, then redeploy `prod`. The private evidence-bucket CORS rule may retain both localhost and the website origin.
 
 ## Source of truth
 

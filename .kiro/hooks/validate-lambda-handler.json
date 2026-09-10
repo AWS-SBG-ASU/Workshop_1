@@ -8,7 +8,7 @@
       "matcher": "backend[\\\\/]functions[\\\\/].*lambda_function\\.py$",
       "action": {
         "type": "agent",
-        "prompt": "A ProofStack Lambda handler changed. Run its focused local pytest without AWS credentials or network access. Then apply the lambda-console-handoff skill: include the standalone source path, environment variables, least-privilege IAM actions/resources, matching API Gateway HTTP API v2 event, expected result and side effect, exact local test result, and ordered AWS Console steps. Do not provide cloud CLI or infrastructure-as-code instructions."
+        "prompt": "A ProofStack Lambda handler changed. Run its focused local pytest without AWS credentials or network access. Then apply the lambda-console-handoff skill: include the standalone source path, environment variables, least-privilege IAM actions/resources, and a matching API Gateway REST API Lambda proxy event with top-level httpMethod, path, resource, pathParameters.id when applicable, and requestContext.stage set to prod. Include the expected result and side effect, exact local test result, and ordered AWS Console steps. Verify the Regional REST API business method uses Lambda proxy integration; verify both the business method and its OPTIONS method use Authorization NONE and API Key Required false; verify OPTIONS MOCK CORS and DEFAULT_4XX/DEFAULT_5XX CORS; state whether prod must be explicitly redeployed. Do not provide cloud CLI or infrastructure-as-code instructions."
       }
     }
   ]

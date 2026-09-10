@@ -15,9 +15,65 @@ def test_parses_get_path_and_id_path_parameter():
 
     assert request.method == "GET"
     assert request.path == "/evidence/demo-id"
+    assert request.resource == "/evidence/{id}"
+    assert request.stage == "prod"
     assert request.body is None
     assert request.path_parameters == {"id": "demo-id"}
     assert request.query_parameters == {}
+
+
+def test_rejects_missing_or_malformed_resource_context_and_stage():
+    invalid_events = []
+
+    event = load_event()
+    event.pop("resource")
+    invalid_events.append(event)
+
+    event = load_event()
+    event["resource"] = "evidence/{id}"
+    invalid_events.append(event)
+
+    event = load_event()
+    event.pop("requestContext")
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"] = []
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"] = {}
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"]["stage"] = ""
+    invalid_events.append(event)
+
+    for invalid_event in invalid_events:
+        response = lambda_function.lambda_handler(invalid_event, None)
+
+        assert response["statusCode"] == 400
+        assert json.loads(response["body"])["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_rejects_stage_other_than_prod():
+    event = load_event()
+    event["requestContext"]["stage"] = "dev"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 400
+    assert json.loads(response["body"])["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_rejects_mismatched_resource_template():
+    event = load_event()
+    event["resource"] = "/evidence"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 404
+    assert json.loads(response["body"])["error"]["code"] == "NOT_FOUND"
 
 
 def test_builds_api_gateway_response_model(monkeypatch):
@@ -25,15 +81,15 @@ def test_builds_api_gateway_response_model(monkeypatch):
     headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "https://app.example.com",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "OPTIONS,GET",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Access-Control-Allow-Methods": "GET,DELETE,OPTIONS",
     }
 
     response = lambda_function.ApiResponse(
-        200, {"id": "demo-id"}, "OPTIONS,GET"
+        200, {"id": "demo-id"}, "GET,DELETE,OPTIONS"
     ).to_dict()
     bodyless_response = lambda_function.ApiResponse(
-        204, None, "OPTIONS,GET"
+        204, None, "GET,DELETE,OPTIONS"
     ).to_dict()
 
     assert response == {

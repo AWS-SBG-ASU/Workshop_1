@@ -15,9 +15,74 @@ def test_parses_get_path_without_query_parameters():
 
     assert request.method == "GET"
     assert request.path == "/evidence"
+    assert request.resource == "/evidence"
+    assert request.stage == "prod"
     assert request.body is None
     assert request.path_parameters == {}
     assert request.query_parameters == {}
+
+
+def test_rejects_missing_or_malformed_resource_context_and_stage():
+    invalid_events = []
+
+    event = load_event()
+    event.pop("resource")
+    invalid_events.append(event)
+
+    event = load_event()
+    event["resource"] = "evidence"
+    invalid_events.append(event)
+
+    event = load_event()
+    event.pop("requestContext")
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"] = []
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"] = {}
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"]["stage"] = ""
+    invalid_events.append(event)
+
+    for invalid_event in invalid_events:
+        response = lambda_function.lambda_handler(invalid_event, None)
+
+        assert response["statusCode"] == 400
+        assert json.loads(response["body"])["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_rejects_stage_other_than_prod():
+    event = load_event()
+    event["requestContext"]["stage"] = "dev"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 400
+    assert json.loads(response["body"])["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_rejects_mismatched_resource_template():
+    event = load_event()
+    event["resource"] = "/uploads/presign"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 404
+    assert json.loads(response["body"])["error"]["code"] == "NOT_FOUND"
+
+
+def test_preserves_rest_query_string_parameters():
+    event = load_event()
+    event["queryStringParameters"] = {"tag": "receipt"}
+
+    request = lambda_function.ApiRequest.from_event(event)
+
+    assert request.query_parameters == {"tag": "receipt"}
 
 
 def test_builds_api_gateway_response_model(monkeypatch):
@@ -25,15 +90,15 @@ def test_builds_api_gateway_response_model(monkeypatch):
     headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "https://app.example.com",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "OPTIONS,GET",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     }
 
     response = lambda_function.ApiResponse(
-        200, {"items": []}, "OPTIONS,GET"
+        200, {"items": []}, "GET,POST,OPTIONS"
     ).to_dict()
     bodyless_response = lambda_function.ApiResponse(
-        204, None, "OPTIONS,GET"
+        204, None, "GET,POST,OPTIONS"
     ).to_dict()
 
     assert response == {
@@ -89,7 +154,7 @@ def test_reports_missing_configuration_without_aws_access(monkeypatch):
 
 def test_rejects_wrong_method_for_route():
     event = load_event()
-    event["requestContext"]["http"]["method"] = "POST"
+    event["httpMethod"] = "POST"
 
     response = lambda_function.lambda_handler(event, None)
 

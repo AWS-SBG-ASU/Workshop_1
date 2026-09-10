@@ -8,10 +8,20 @@ Use this stack without substitution:
 
 - React, Vite, and TypeScript for the browser application.
 - Python for five AWS Lambda handlers.
-- Amazon API Gateway HTTP API with payload format 2.0.
+- Amazon API Gateway Regional REST API with Lambda proxy integration and named stage `prod`.
 - Amazon DynamoDB with string keys `PK` and `SK`.
 - One private S3 bucket for evidence files.
 - One separate public S3 bucket for the built frontend.
+
+## REST API rules
+
+- Create REST resources `/uploads/presign`, `/evidence`, and `/evidence/{id}`. Connect the five business methods with Lambda proxy integration.
+- Set **Authorization** to `NONE` and **API Key Required** to false on business methods and `OPTIONS`; do not implement authentication or API keys.
+- REST proxy events use top-level `httpMethod`, `path`, and `resource`; item events use `pathParameters.id`; Console events use `requestContext.stage = "prod"`.
+- Add per-resource `OPTIONS` methods with `MOCK` integrations. Initially allow `http://localhost:5173`, headers `content-type,accept`, and exact method lists `POST,OPTIONS` for `/uploads/presign`, `GET,POST,OPTIONS` for `/evidence`, and `GET,DELETE,OPTIONS` for `/evidence/{id}`.
+- Add CORS headers to Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX`.
+- Explicitly deploy and redeploy API changes to `prod`. Use invoke base `https://<api-id>.execute-api.<region>.amazonaws.com/prod`.
+- In phase 5, replace localhost in REST `OPTIONS`, Gateway Responses, and Lambda `ALLOWED_ORIGIN` with the website origin, then redeploy. Private S3 CORS may retain both origins.
 
 ## Technical rules
 

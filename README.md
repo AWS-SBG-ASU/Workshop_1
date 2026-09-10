@@ -8,8 +8,8 @@ ProofStack is a personal evidence application for one fixed demo user. It upload
 React + Vite + TypeScript (public S3 website)
              |
              v
-API Gateway HTTP API (payload format 2.0)
-             |
+API Gateway Regional REST API (stage: prod)
+             | Lambda proxy integration
              v
 Five standalone Python Lambda functions
        |                 |
@@ -28,14 +28,16 @@ Every data operation uses `PK = USER#demo`. Evidence files use the private prefi
 | `GET /evidence/{id}`    | Return one record; phase 4 responses may include a temporary `assetUrl`.                                  |
 | `DELETE /evidence/{id}` | Delete the exact private asset, then delete its metadata.                                                 |
 
-Parameterized events use `pathParameters.id`. API errors use `{"error":{"code":"...","message":"..."}}`; a successful delete returns an empty `204`.
+Business methods use Lambda proxy integration with **Authorization** `NONE` and **API Key Required** false. REST proxy events use top-level `httpMethod`, `path`, and `resource`; parameterized events use `pathParameters.id`; Console events set `requestContext.stage` to `prod`. API errors use `{"error":{"code":"...","message":"..."}}`; a successful delete returns an empty `204`.
+
+Each REST resource has an `OPTIONS` MOCK method with local-development CORS and its exact method list. Gateway Responses `DEFAULT_4XX` and `DEFAULT_5XX` also include CORS. API changes are explicitly deployed to the named `prod` stage; the frontend base is `https://<api-id>.execute-api.<region>.amazonaws.com/prod`.
 
 ## Repository layout
 
 ```text
 frontend/           React, Vite, and TypeScript browser application
 backend/functions/  standalone Python Lambda handlers
-backend/events/     API Gateway HTTP API payload v2.0 events
+backend/events/     Lambda Console request fixtures
 backend/tests/      local handler tests
 docs/               AWS setup, testing, troubleshooting, and cleanup
 ```
@@ -61,7 +63,7 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-For local frontend development, copy `frontend/.env.example` to `frontend/.env.local`, set `VITE_API_BASE_URL` to the HTTP API invoke URL without a trailing slash, then run:
+For local frontend development, copy `frontend/.env.example` to `frontend/.env.local`, set `VITE_API_BASE_URL` to the REST API invoke base ending in `/prod` without a trailing slash, then run:
 
 ```text
 npm --prefix frontend run dev
@@ -71,10 +73,10 @@ npm --prefix frontend run dev
 
 Follow [AWS Console setup](docs/aws-console-setup.md) in this required order:
 
-1. Create the API Gateway HTTP API shell and configure CORS for `http://localhost:5173`.
-2. Create the five Lambdas, set `ALLOWED_ORIGIN`, and connect the five routes.
+1. Create the Regional REST API resources, initial `OPTIONS` MOCK CORS and default Gateway Responses, then deploy to `prod`.
+2. Create the five Lambdas, set `ALLOWED_ORIGIN`, connect the five Lambda proxy business methods, and redeploy `prod`.
 3. Create DynamoDB and activate metadata operations.
 4. Create the private S3 bucket and activate signed PUT/GET and delete behavior.
-5. Build React, deploy it to the separate public S3 bucket, add the website origin to CORS, and update `ALLOWED_ORIGIN`.
+5. Build React, deploy it to the separate public S3 bucket, replace localhost in REST/Lambda CORS, retain both origins in private S3 CORS, and redeploy `prod`.
 
 See [Lambda Console testing](docs/lambda-console-testing.md), [troubleshooting](docs/troubleshooting.md), and [cleanup](docs/cleanup.md) for operational guidance.

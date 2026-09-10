@@ -12,7 +12,7 @@ Use this skill after creating or changing any ProofStack Lambda handler. Run the
 - The handler is standalone Python with no project-local imports.
 - The full file can be copied into `lambda_function.py`.
 - The entry point is `lambda_handler`.
-- The event uses API Gateway HTTP API payload format 2.0.
+- The event is an API Gateway REST API Lambda proxy event for named stage `prod`.
 - Local tests use mocked or fake AWS clients and do not contact AWS.
 
 ## Required output
@@ -33,7 +33,7 @@ Return every section below. Do not omit empty sections; write `None` with a shor
 Provide a table with:
 
 | Name | Value source | Required | Purpose |
-|---|---|---:|---|
+| ---- | ------------ | -------: | ------- |
 
 Use placeholders for console-created values. Never include credentials or secrets.
 
@@ -42,13 +42,35 @@ Use placeholders for console-created values. Never include credentials or secret
 Provide a least-privilege table with:
 
 | Effect | Action | Resource ARN pattern | Reason |
-|---|---|---|---|
+| ------ | ------ | -------------------- | ------ |
 
 List exact DynamoDB, S3, and logging needs. Do not use `*` resources when a table, bucket, object prefix, or log group can be scoped.
 
 ### 4. Lambda Console event
 
-Provide one complete JSON event for the changed behavior. It must use payload format `2.0` and include the route key, raw path, HTTP method, headers, path parameters when applicable, and a JSON-string body when applicable. Use non-sensitive sample values.
+Provide one complete JSON event for the changed behavior. It must include:
+
+- top-level `httpMethod`, actual `path`, and templated `resource`
+- headers including `content-type` when a body is present
+- `pathParameters.id` for `/evidence/{id}` requests, or `pathParameters: null` otherwise
+- `requestContext.stage` set to `prod`
+- a JSON-string `body` when applicable, or `body: null`
+- `isBase64Encoded: false`
+
+Use non-sensitive sample values. A representative event shape is:
+
+```json
+{
+  "httpMethod": "GET",
+  "path": "/evidence/demo-id",
+  "resource": "/evidence/{id}",
+  "headers": { "accept": "application/json" },
+  "pathParameters": { "id": "demo-id" },
+  "requestContext": { "stage": "prod" },
+  "body": null,
+  "isBase64Encoded": false
+}
+```
 
 ### 5. Expected result
 
@@ -73,11 +95,12 @@ Give ordered console steps covering only what applies:
 2. Paste the standalone source into `lambda_function.py` and deploy it.
 3. Set the handler value and environment variables.
 4. Attach or update the least-privilege execution-role permissions.
-5. Attach the API Gateway HTTP API trigger and exact method/route.
-6. Confirm payload format 2.0 and CORS configuration.
-7. Create the named test event from the supplied JSON.
-8. Run the event and compare status, headers, body, logs, and side effects with the expected result.
+5. In the Regional REST API, open the exact resource and business method, choose the Lambda, and enable Lambda proxy integration.
+6. Confirm the business method and its resource's `OPTIONS` method both use **Authorization** `NONE` and **API Key Required** false. Confirm API Gateway can invoke the function, `OPTIONS` uses a MOCK integration, and `DEFAULT_4XX` and `DEFAULT_5XX` CORS exists.
+7. Explicitly deploy or redeploy the API to stage `prod` if the method, integration, permissions, CORS, or Gateway Responses changed. Record the invoke base ending in `/prod`.
+8. Create the named Lambda Console test event from the supplied JSON.
+9. Run the event and compare status, headers, body, logs, and side effects with the expected result.
 
 ## Verification rule
 
-A handler handoff is incomplete until its focused local test result and Lambda Console API Gateway v2 test event are both included. Never provide AWS CLI, SAM, CDK, Terraform, OpenTofu, Pulumi, Serverless Framework, or `sls` instructions.
+A handler handoff is incomplete until its focused local test result and Lambda Console REST proxy event for `prod` are both included. It must also state whether `prod` redeployment is required. Never provide AWS CLI, SAM, CDK, Terraform, OpenTofu, Pulumi, Serverless Framework, or `sls` instructions.

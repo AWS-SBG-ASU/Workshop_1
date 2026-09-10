@@ -31,6 +31,8 @@ def test_parses_post_path_and_json_body():
 
     assert request.method == "POST"
     assert request.path == "/evidence"
+    assert request.resource == "/evidence"
+    assert request.stage == "prod"
     assert request.body == {
         "title": "Purchase receipt",
         "description": "Receipt for office supplies.",
@@ -43,20 +45,74 @@ def test_parses_post_path_and_json_body():
     assert request.query_parameters == {}
 
 
+def test_rejects_missing_or_malformed_resource_context_and_stage():
+    invalid_events = []
+
+    event = load_event()
+    event.pop("resource")
+    invalid_events.append(event)
+
+    event = load_event()
+    event["resource"] = "evidence"
+    invalid_events.append(event)
+
+    event = load_event()
+    event.pop("requestContext")
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"] = []
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"] = {}
+    invalid_events.append(event)
+
+    event = load_event()
+    event["requestContext"]["stage"] = ""
+    invalid_events.append(event)
+
+    for invalid_event in invalid_events:
+        response = lambda_function.lambda_handler(invalid_event, None)
+
+        assert response["statusCode"] == 400
+        assert parsed_body(response)["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_rejects_stage_other_than_prod():
+    event = load_event()
+    event["requestContext"]["stage"] = "dev"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 400
+    assert parsed_body(response)["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_rejects_mismatched_resource_template():
+    event = load_event()
+    event["resource"] = "/uploads/presign"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 404
+    assert parsed_body(response)["error"]["code"] == "NOT_FOUND"
+
+
 def test_builds_api_gateway_response_model(monkeypatch):
     monkeypatch.setenv("ALLOWED_ORIGIN", "https://app.example.com")
     headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "https://app.example.com",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "OPTIONS,POST",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     }
 
     response = lambda_function.ApiResponse(
-        201, {"id": "demo-id"}, "OPTIONS,POST"
+        201, {"id": "demo-id"}, "GET,POST,OPTIONS"
     ).to_dict()
     bodyless_response = lambda_function.ApiResponse(
-        204, None, "OPTIONS,POST"
+        204, None, "GET,POST,OPTIONS"
     ).to_dict()
 
     assert response == {
@@ -226,10 +282,17 @@ def test_rejects_malformed_json_without_raising(monkeypatch):
     assert parsed_body(response)["error"]["code"] == "INVALID_REQUEST"
 
 
-def test_rejects_non_v2_event_without_raising():
-    event = load_event()
-    event["version"] = "1.0"
-
+@pytest.mark.parametrize(
+    "event",
+    [
+        None,
+        {},
+        {"httpMethod": "POST"},
+        {"path": "/evidence"},
+        {"httpMethod": "POST", "path": "evidence"},
+    ],
+)
+def test_rejects_malformed_rest_proxy_event_without_raising(event):
     response = lambda_function.lambda_handler(event, None)
 
     assert response["statusCode"] == 400
