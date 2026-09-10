@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "The customer-facing interface for ProofStack, a personal evidence library.",
+  "description": "The personal evidence-library interface for ProofStack.",
   "engines": {
     "node": ">=20.19.0"
   },

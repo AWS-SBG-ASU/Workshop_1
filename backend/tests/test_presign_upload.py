@@ -18,7 +18,7 @@ def test_parses_post_path_and_json_body():
     assert request.path == "/uploads/presign"
     assert request.resource == "/uploads/presign"
     assert request.stage == "prod"
-    assert request.body == {"fileName": "receipt.pdf", "contentType": "application/pdf"}
+    assert request.body == {"fileName": "cloud-architecture-certificate.pdf", "contentType": "application/pdf"}
     assert request.path_parameters == {}
     assert request.query_parameters == {}
 
@@ -84,7 +84,7 @@ def test_parses_base64_encoded_json_body():
 
     request = lambda_function.ApiRequest.from_event(event)
 
-    assert request.body["fileName"] == "receipt.pdf"
+    assert request.body["fileName"] == "cloud-architecture-certificate.pdf"
 
 
 def test_builds_api_gateway_response_model(monkeypatch):
@@ -97,7 +97,7 @@ def test_builds_api_gateway_response_model(monkeypatch):
     }
 
     response = lambda_function.ApiResponse(
-        200, {"assetKey": "evidence/demo/demo-id/receipt.pdf"}, "POST,OPTIONS"
+        200, {"assetKey": "evidence/demo/demo-id/cloud-architecture-certificate.pdf"}, "POST,OPTIONS"
     ).to_dict()
     bodyless_response = lambda_function.ApiResponse(
         204, None, "POST,OPTIONS"
@@ -106,7 +106,7 @@ def test_builds_api_gateway_response_model(monkeypatch):
     assert response == {
         "statusCode": 200,
         "headers": headers,
-        "body": '{"assetKey":"evidence/demo/demo-id/receipt.pdf"}',
+        "body": '{"assetKey":"evidence/demo/demo-id/cloud-architecture-certificate.pdf"}',
     }
     assert bodyless_response == {"statusCode": 204, "headers": headers}
 

@@ -78,11 +78,11 @@ def test_rejects_mismatched_resource_template():
 
 def test_preserves_rest_query_string_parameters():
     event = load_event()
-    event["queryStringParameters"] = {"tag": "receipt"}
+    event["queryStringParameters"] = {"tag": "certification"}
 
     request = lambda_function.ApiRequest.from_event(event)
 
-    assert request.query_parameters == {"tag": "receipt"}
+    assert request.query_parameters == {"tag": "certification"}
 
 
 def test_builds_api_gateway_response_model(monkeypatch):

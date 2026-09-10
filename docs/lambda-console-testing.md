@@ -42,7 +42,7 @@ Representative JSON-body event:
   "requestContext": {
     "stage": "prod"
   },
-  "body": "{\"fileName\":\"receipt.pdf\",\"contentType\":\"application/pdf\"}",
+  "body": "{\"fileName\":\"cloud-architecture-certificate.pdf\",\"contentType\":\"application/pdf\"}",
   "isBase64Encoded": false
 }
 ```

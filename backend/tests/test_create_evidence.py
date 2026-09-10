@@ -34,12 +34,12 @@ def test_parses_post_path_and_json_body():
     assert request.resource == "/evidence"
     assert request.stage == "prod"
     assert request.body == {
-        "title": "Purchase receipt",
-        "description": "Receipt for office supplies.",
-        "tags": ["receipt", "office"],
-        "fileName": "receipt.pdf",
+        "title": "Cloud architecture certificate",
+        "description": "Certificate confirming completion of a cloud architecture assessment.",
+        "tags": ["certification", "cloud"],
+        "fileName": "cloud-architecture-certificate.pdf",
         "contentType": "application/pdf",
-        "assetKey": "evidence/demo/demo-id/receipt.pdf",
+        "assetKey": "evidence/demo/demo-id/cloud-architecture-certificate.pdf",
     }
     assert request.path_parameters == {}
     assert request.query_parameters == {}
@@ -153,10 +153,10 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
     request_body = json.loads(event["body"])
     request_body.update(
         {
-            "title": "  Purchase receipt  ",
-            "description": "  Receipt for office supplies.  ",
-            "tags": [" receipt ", "office"],
-            "fileName": "  receipt.pdf  ",
+            "title": "  Cloud architecture certificate  ",
+            "description": "  Certificate confirming completion of a cloud architecture assessment.  ",
+            "tags": [" certification ", "cloud"],
+            "fileName": "  cloud-architecture-certificate.pdf  ",
             "contentType": "  application/pdf  ",
             "PK": "ATTACKER",
             "SK": "ATTACKER",
@@ -173,12 +173,12 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
     record = parsed_body(response)
     assert record == {
         "id": "20250102T030405123456Z-a1b2c3d4",
-        "title": "Purchase receipt",
-        "description": "Receipt for office supplies.",
-        "tags": ["receipt", "office"],
-        "fileName": "receipt.pdf",
+        "title": "Cloud architecture certificate",
+        "description": "Certificate confirming completion of a cloud architecture assessment.",
+        "tags": ["certification", "cloud"],
+        "fileName": "cloud-architecture-certificate.pdf",
         "contentType": "application/pdf",
-        "assetKey": "evidence/demo/demo-id/receipt.pdf",
+        "assetKey": "evidence/demo/demo-id/cloud-architecture-certificate.pdf",
         "createdAt": "2025-01-02T03:04:05.123456Z",
     }
     assert stored == [
@@ -203,9 +203,9 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
         ({"title": "   "}, "title"),
         (
             {
-                "title": "Receipt",
-                "tags": "receipt",
-                "fileName": "receipt.pdf",
+                "title": "Professional record",
+                "tags": "certification",
+                "fileName": "professional-record.pdf",
                 "contentType": "application/pdf",
                 "assetKey": "evidence/demo/file.pdf",
             },
@@ -213,9 +213,9 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
         ),
         (
             {
-                "title": "Receipt",
+                "title": "Professional record",
                 "tags": ["valid", "   "],
-                "fileName": "receipt.pdf",
+                "fileName": "professional-record.pdf",
                 "contentType": "application/pdf",
                 "assetKey": "evidence/demo/file.pdf",
             },
@@ -223,7 +223,7 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
         ),
         (
             {
-                "title": "Receipt",
+                "title": "Professional record",
                 "tags": [],
                 "fileName": "",
                 "contentType": "application/pdf",
@@ -233,9 +233,9 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
         ),
         (
             {
-                "title": "Receipt",
+                "title": "Professional record",
                 "tags": [],
-                "fileName": "receipt.pdf",
+                "fileName": "professional-record.pdf",
                 "contentType": "not-a-mime-type",
                 "assetKey": "evidence/demo/file.pdf",
             },
@@ -243,9 +243,9 @@ def test_creates_evidence_with_server_owned_keys(monkeypatch):
         ),
         (
             {
-                "title": "Receipt",
+                "title": "Professional record",
                 "tags": [],
-                "fileName": "receipt.pdf",
+                "fileName": "professional-record.pdf",
                 "contentType": "application/pdf",
                 "assetKey": "another-user/file.pdf",
             },

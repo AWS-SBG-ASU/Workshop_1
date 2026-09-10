@@ -55,13 +55,13 @@ A missing required environment variable produces `500` with code `CONFIGURATION_
 Presign request:
 
 ```json
-{"fileName":"receipt.pdf","contentType":"application/pdf"}
+{"fileName":"cloud-architecture-certificate.pdf","contentType":"application/pdf"}
 ```
 
 Presign success:
 
 ```json
-{"uploadUrl":"temporary signed URL","assetKey":"evidence/demo/unique-receipt.pdf","expiresIn":900}
+{"uploadUrl":"temporary signed URL","assetKey":"evidence/demo/unique-cloud-architecture-certificate.pdf","expiresIn":900}
 ```
 
 Evidence records use `assetKey`. After signed downloads are enabled, list and get responses may add `assetUrl`; temporary URLs are never stored in DynamoDB or logged.

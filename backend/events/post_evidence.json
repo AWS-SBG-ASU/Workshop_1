@@ -17,6 +17,6 @@
     "httpMethod": "POST",
     "stage": "prod"
   },
-  "body": "{\"title\":\"Purchase receipt\",\"description\":\"Receipt for office supplies.\",\"tags\":[\"receipt\",\"office\"],\"fileName\":\"receipt.pdf\",\"contentType\":\"application/pdf\",\"assetKey\":\"evidence/demo/demo-id/receipt.pdf\"}",
+  "body": "{\"title\":\"Cloud architecture certificate\",\"description\":\"Certificate confirming completion of a cloud architecture assessment.\",\"tags\":[\"certification\",\"cloud\"],\"fileName\":\"cloud-architecture-certificate.pdf\",\"contentType\":\"application/pdf\",\"assetKey\":\"evidence/demo/demo-id/cloud-architecture-certificate.pdf\"}",
   "isBase64Encoded": false
 }
