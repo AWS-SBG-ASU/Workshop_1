@@ -84,7 +84,7 @@ For each row:
 
 Item events use `pathParameters.id`. After all five integrations are saved, choose **Deploy API** and redeploy stage `prod`. Confirm the API appears under each Lambda's triggers and the frontend invoke base still ends in `/prod`.
 
-Run the matching event described in [Lambda Console testing](lambda-console-testing.md). At this phase, future resource variables are intentionally absent. A handler that requires one returns `500` with error code `CONFIGURATION_ERROR`. If all variables required by an unfinished operation have been added, that operation returns `501` with error code `NOT_IMPLEMENTED`.
+After a handler is copied or edited, run its matching event described in [Lambda Console testing](lambda-console-testing.md). At this phase, future resource variables are intentionally absent. A handler that requires one returns `500` with error code `CONFIGURATION_ERROR`. If all variables required by an unfinished operation have been added, that operation returns `501` with error code `NOT_IMPLEMENTED`.
 
 ## 3. Create DynamoDB and activate metadata operations
 
@@ -106,12 +106,12 @@ Items use `PK = USER#demo` and `SK = EVIDENCE#<id>`. Generate `id` as a compact 
 
 List uses a DynamoDB Query with `PK = USER#demo`, the `EVIDENCE#` sort-key prefix, and descending sort-key order. It never uses Scan and returns all items without pagination. Do not expose `PK` or `SK`.
 
-Keep basic logging permissions limited to `logs:CreateLogGroup`, `logs:CreateLogStream`, and `logs:PutLogEvents`. Test data through ProofStack requests, not the DynamoDB item editor.
+Test data through ProofStack requests, not the DynamoDB item editor.
 
 ## 4. Create the private evidence bucket and activate signed file operations
 
 1. Open **S3** → **Buckets** → **Create bucket**. Enter the recorded asset bucket name and select `us-east-1`.
-2. Keep all four **Block Public Access** settings enabled. Keep ACLs disabled, enable default encryption, and create the bucket.
+2. Keep all four **Block Public Access** settings enabled and create the bucket.
 3. On **Permissions**, configure CORS for local browser PUT and GET:
 
 ```json

@@ -44,7 +44,7 @@ Provide a least-privilege table with:
 | Effect | Action | Resource ARN pattern | Reason |
 | ------ | ------ | -------------------- | ------ |
 
-List exact DynamoDB, S3, and logging needs. Do not use `*` resources when a table, bucket, object prefix, or log group can be scoped.
+List exact applicable DynamoDB and S3 needs. Do not use `*` resources when a table, bucket, or object prefix can be scoped.
 
 ### 4. Lambda Console event
 

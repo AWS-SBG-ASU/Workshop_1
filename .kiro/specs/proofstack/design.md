@@ -126,7 +126,7 @@ Set `ALLOWED_ORIGIN=http://localhost:5173` in phase 2. Replace it with the exact
 | Get     | `dynamodb:GetItem`                        | `s3:GetObject`          |
 | Delete  | `dynamodb:GetItem`, `dynamodb:DeleteItem` | `s3:DeleteObject`       |
 
-DynamoDB permissions target the exact table ARN. S3 permissions target `arn:aws:s3:::<asset-bucket>/evidence/demo/*`. Basic Lambda logging permissions remain separate from application data permissions.
+DynamoDB permissions target the exact table ARN. S3 permissions target `arn:aws:s3:::<asset-bucket>/evidence/demo/*`.
 
 ## Ordered delivery
 
