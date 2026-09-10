@@ -24,9 +24,9 @@
     "requestId": "create-request",
     "routeKey": "POST /evidence",
     "stage": "$default",
-    "time": "01/Jan/2025:00:00:00 +0000",
-    "timeEpoch": 1735689600000
+    "time": "02/Jan/2025:03:04:05 +0000",
+    "timeEpoch": 1735787045123
   },
-  "body": "{\"title\":\"Purchase receipt\",\"description\":\"Receipt for office supplies.\",\"tags\":[\"receipt\",\"office\"],\"assetKey\":\"evidence/demo/demo-id/receipt.pdf\"}",
+  "body": "{\"title\":\"Purchase receipt\",\"description\":\"Receipt for office supplies.\",\"tags\":[\"receipt\",\"office\"],\"fileName\":\"receipt.pdf\",\"contentType\":\"application/pdf\",\"assetKey\":\"evidence/demo/demo-id/receipt.pdf\"}",
   "isBase64Encoded": false
 }

@@ -1,5 +1,8 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+
+import pytest
 
 from functions.create_evidence import lambda_function
 
@@ -8,6 +11,19 @@ EVENT_PATH = Path(__file__).parents[1] / "events" / "post_evidence.json"
 
 def load_event():
     return json.loads(EVENT_PATH.read_text(encoding="utf-8"))
+
+
+def parsed_body(response):
+    body = json.loads(response["body"])
+    if response["statusCode"] >= 400:
+        assert set(body) == {"error"}
+        assert set(body["error"]) == {"code", "message"}
+    return body
+
+
+def configured(monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGIN", "https://app.example.com")
+    monkeypatch.setenv("TABLE_NAME", "proofstack-test")
 
 
 def test_parses_post_path_and_json_body():
@@ -19,6 +35,8 @@ def test_parses_post_path_and_json_body():
         "title": "Purchase receipt",
         "description": "Receipt for office supplies.",
         "tags": ["receipt", "office"],
+        "fileName": "receipt.pdf",
+        "contentType": "application/pdf",
         "assetKey": "evidence/demo/demo-id/receipt.pdf",
     }
     assert request.path_parameters == {}
@@ -59,16 +77,153 @@ def test_declares_canonical_contract():
     assert "s3:" not in source
 
 
-def test_returns_controlled_not_implemented_response(monkeypatch):
-    monkeypatch.setenv("ALLOWED_ORIGIN", "https://app.example.com")
-    monkeypatch.setenv("TABLE_NAME", "test-value")
+def test_creates_evidence_with_server_owned_keys(monkeypatch):
+    configured(monkeypatch)
+    stored = []
 
-    response = lambda_function.lambda_handler(load_event(), None)
+    class FakeTable:
+        def put_item(self, **kwargs):
+            stored.append(kwargs)
 
-    assert response["statusCode"] == 501
-    assert response["headers"]["Content-Type"] == "application/json"
+    monkeypatch.setattr(lambda_function, "get_table", lambda table_name: FakeTable())
+    monkeypatch.setattr(
+        lambda_function,
+        "current_utc_time",
+        lambda: datetime(2025, 1, 2, 3, 4, 5, 123456, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(lambda_function, "new_uuid_segment", lambda: "a1b2c3d4")
+
+    event = load_event()
+    request_body = json.loads(event["body"])
+    request_body.update(
+        {
+            "title": "  Purchase receipt  ",
+            "description": "  Receipt for office supplies.  ",
+            "tags": [" receipt ", "office"],
+            "fileName": "  receipt.pdf  ",
+            "contentType": "  application/pdf  ",
+            "PK": "ATTACKER",
+            "SK": "ATTACKER",
+            "id": "caller-controlled",
+        }
+    )
+    event["body"] = json.dumps(request_body)
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 201
     assert response["headers"]["Access-Control-Allow-Origin"] == "https://app.example.com"
-    assert json.loads(response["body"])["error"]["code"] == "NOT_IMPLEMENTED"
+    assert response["headers"]["Content-Type"] == "application/json"
+    record = parsed_body(response)
+    assert record == {
+        "id": "20250102T030405123456Z-a1b2c3d4",
+        "title": "Purchase receipt",
+        "description": "Receipt for office supplies.",
+        "tags": ["receipt", "office"],
+        "fileName": "receipt.pdf",
+        "contentType": "application/pdf",
+        "assetKey": "evidence/demo/demo-id/receipt.pdf",
+        "createdAt": "2025-01-02T03:04:05.123456Z",
+    }
+    assert stored == [
+        {
+            "Item": {
+                "PK": "USER#demo",
+                "SK": "EVIDENCE#20250102T030405123456Z-a1b2c3d4",
+                **record,
+            }
+        }
+    ]
+    assert "PK" not in record
+    assert "SK" not in record
+
+
+@pytest.mark.parametrize(
+    ("body", "message_fragment"),
+    [
+        (None, "JSON object"),
+        ([], "JSON object"),
+        ({}, "title"),
+        ({"title": "   "}, "title"),
+        (
+            {
+                "title": "Receipt",
+                "tags": "receipt",
+                "fileName": "receipt.pdf",
+                "contentType": "application/pdf",
+                "assetKey": "evidence/demo/file.pdf",
+            },
+            "tags",
+        ),
+        (
+            {
+                "title": "Receipt",
+                "tags": ["valid", "   "],
+                "fileName": "receipt.pdf",
+                "contentType": "application/pdf",
+                "assetKey": "evidence/demo/file.pdf",
+            },
+            "tags",
+        ),
+        (
+            {
+                "title": "Receipt",
+                "tags": [],
+                "fileName": "",
+                "contentType": "application/pdf",
+                "assetKey": "evidence/demo/file.pdf",
+            },
+            "fileName",
+        ),
+        (
+            {
+                "title": "Receipt",
+                "tags": [],
+                "fileName": "receipt.pdf",
+                "contentType": "not-a-mime-type",
+                "assetKey": "evidence/demo/file.pdf",
+            },
+            "contentType",
+        ),
+        (
+            {
+                "title": "Receipt",
+                "tags": [],
+                "fileName": "receipt.pdf",
+                "contentType": "application/pdf",
+                "assetKey": "another-user/file.pdf",
+            },
+            "assetKey",
+        ),
+    ],
+)
+def test_rejects_invalid_metadata_before_aws_access(monkeypatch, body, message_fragment):
+    configured(monkeypatch)
+
+    def fail_aws_access(*args, **kwargs):
+        raise AssertionError("AWS access was attempted")
+
+    monkeypatch.setattr(lambda_function.boto3, "resource", fail_aws_access)
+    event = load_event()
+    event["body"] = json.dumps(body)
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 400
+    error = parsed_body(response)["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert message_fragment in error["message"]
+
+
+def test_rejects_malformed_json_without_raising(monkeypatch):
+    configured(monkeypatch)
+    event = load_event()
+    event["body"] = "{not-json"
+
+    response = lambda_function.lambda_handler(event, None)
+
+    assert response["statusCode"] == 400
+    assert parsed_body(response)["error"]["code"] == "INVALID_REQUEST"
 
 
 def test_rejects_non_v2_event_without_raising():
@@ -78,7 +233,7 @@ def test_rejects_non_v2_event_without_raising():
     response = lambda_function.lambda_handler(event, None)
 
     assert response["statusCode"] == 400
-    assert json.loads(response["body"])["error"]["code"] == "INVALID_REQUEST"
+    assert parsed_body(response)["error"]["code"] == "INVALID_REQUEST"
 
 
 def test_reports_missing_configuration_without_aws_access(monkeypatch):
@@ -94,4 +249,24 @@ def test_reports_missing_configuration_without_aws_access(monkeypatch):
     response = lambda_function.lambda_handler(load_event(), None)
 
     assert response["statusCode"] == 500
-    assert json.loads(response["body"])["error"]["code"] == "CONFIGURATION_ERROR"
+    assert parsed_body(response)["error"]["code"] == "CONFIGURATION_ERROR"
+
+
+def test_sanitizes_dynamodb_failure(monkeypatch):
+    configured(monkeypatch)
+
+    class FailingTable:
+        def put_item(self, **kwargs):
+            raise RuntimeError("secret dependency detail")
+
+    monkeypatch.setattr(lambda_function, "get_table", lambda table_name: FailingTable())
+
+    response = lambda_function.lambda_handler(load_event(), None)
+
+    assert response["statusCode"] == 500
+    error = parsed_body(response)["error"]
+    assert error == {
+        "code": "DEPENDENCY_ERROR",
+        "message": "Evidence could not be saved.",
+    }
+    assert "secret dependency detail" not in response["body"]
