@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with the browser Network panel, then API Gateway access logs and the Lambda's CloudWatch log stream. Record request IDs, status codes, and resource names, but never log credentials, raw dependency errors, file contents, internal DynamoDB keys, or presigned URLs.
+Start with the browser Network panel, the Lambda's CloudWatch log stream, and the API Gateway deployed method and integration settings. Record request IDs, status codes, and resource names, but never log credentials, raw dependency errors, file contents, internal DynamoDB keys, or presigned URLs.
 
 ## CORS errors
 
@@ -82,4 +82,4 @@ A matching Lambda Console event has top-level `httpMethod`, concrete `path`, tem
 - Upload the contents of `frontend/dist/`, not the directory itself.
 - Confirm `index.html` exists at the bucket root and references uploaded assets.
 - A blank page can indicate a missing or incorrect `VITE_API_BASE_URL`; confirm it is the API invoke base ending in `/prod`, inspect the browser console, and rebuild.
-- S3 website hosting is HTTP-only. If HTTPS is required, place an HTTPS-capable delivery service in front of the website before using a secure custom domain.
+- S3 website hosting is HTTP-only.
